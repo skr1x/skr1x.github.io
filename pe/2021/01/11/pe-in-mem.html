@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
+<title>Portable Executable: In memory | Cyberdough</title>
+<meta name="generator" content="Jekyll v4.1.1" />
+<meta property="og:title" content="Portable Executable: In memory" />
+<meta name="author" content="Skrix" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Introduction" />
+<meta property="og:description" content="Introduction" />
+<link rel="canonical" href="https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html" />
+<meta property="og:url" content="https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html" />
+<meta property="og:site_name" content="Cyberdough" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-01-11T00:00:00+01:00" />
+<script type="application/ld+json">
+{"author":{"@type":"Person","name":"Skrix"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html"},"description":"Introduction","@type":"BlogPosting","url":"https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html","headline":"Portable Executable: In memory","dateModified":"2021-01-11T00:00:00+01:00","datePublished":"2021-01-11T00:00:00+01:00","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="https://skr1x.github.io/feed.xml" title="Cyberdough" />
+</head>
+<body><header class="site-header">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">Cyberdough</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/disclamer/">Disclamer</a><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Portable Executable: In memory</h1>
+    <p class="post-meta"><time class="dt-published" datetime="2021-01-11T00:00:00+01:00" itemprop="datePublished">
+        Jan 11, 2021
+      </time>• 
+          <span itemprop="author" itemscope itemtype="http://schema.org/Person">
+            <span class="p-author h-card" itemprop="name">Skrix</span></span></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <h1 id="introduction"><strong>Introduction</strong></h1>
+
+<p>First of all, welcome back! Hope you didn’t choke on all the food you ate during the Christmas as I surely did. Wish you all the best for 2021.</p>
+
+<p>Let’s recap. Our goal is to emulate Windows’s loader (as simply as we can), load and execute a PE file directly from <strong>memory</strong> (cf. achieve reflective loading).</p>
+
+<p>In our <a href="/pe/2020/09/27/pe.html"><strong>previous article</strong></a>, we covered how a PE file was structured when it resided <strong>on disk</strong> and how we could parse it. In this article we are going to cover how to <strong>load</strong> and <strong>execute</strong> it.</p>
+
+<p><del>But first let me talk about the sponsor of this article, NORDVPN</del></p>
+
+<h1 id="table-of-content"><strong>Table of content</strong></h1>
+
+<ul>
+  <li><a href="#in-memoria"><strong>In memoria</strong></a>
+    <ul>
+      <li><a href="#memory-allocation"><strong>Memory allocation</strong></a></li>
+      <li><a href="#mapping"><strong>Mapping</strong></a>
+        <ul>
+          <li><a href="#sections"><strong>Sections</strong></a></li>
+          <li><a href="#import-table"><strong>Import table</strong></a></li>
+          <li><a href="#relocations"><strong>Relocations</strong></a></li>
+        </ul>
+      </li>
+    </ul>
+  </li>
+  <li><a href="#achieving-reflective-loading"><strong>Achieving reflective loading</strong></a></li>
+  <li><a href="#conclusion"><strong>Conclusion</strong></a></li>
+  <li><a href="#useful-links"><strong>Useful Links</strong></a></li>
+</ul>
+
+<h1 id="in-memoria"><strong>In memoria</strong></h1>
+
+<p>In this article, we will be working with <strong>SimpleEXE.exe</strong>, the same PE file that we analyzed last time.</p>
+
+<h2 id="memory-allocation"><strong>Memory allocation</strong></h2>
+
+<p>Right, let’s start. The first step is to find a memory range large enough for our PE file.</p>
+
+<p><strong>“How big?”</strong>, <em>you ask, askingly</em></p>
+
+<p>If you recall my last blog post you <em>must certainly</em> read, we refer to <strong>OptionalHeader-&gt;SizeOfImage</strong> to know how much to allocate for the specific PE.</p>
+
+<p>“<strong>But, where?</strong>”</p>
+
+<p>During the executable’s allocation, the loader will attempt to reserve a chunk of memory at address <strong>OptionalHeader-&gt;ImageBase</strong>.<br />
+If the address is already occupied or not enough space is available, the loader will allocate at a random address in memory. In that case, relocation will have to be performed when loading the binary or else the execution will fail.<br />
+Realistically we’ll allocate the buffer using <strong>VirtualAllocEx</strong> and work with the pointer returned by the function, so relocations are to be expected.</p>
+
+<h2 id="mapping"><strong>Mapping</strong></h2>
+
+<p>Now that we have a buffer to work with, let’s examine how the file will be mapped to memory.<br />
+If we refer to our previous diagram, here is a broad overview of what happens:</p>
+
+<p style="text-align: center;"><img src="/assets/pe_inmem.png" alt="In memory" /></p>
+
+<p>Remember all that stuff with <strong>Relative Virtual Address</strong> and <strong>Real File Offset</strong> ? Well forget all about them.</p>
+
+<p>In memory, <strong>Relative Virtual Address</strong> are <em>relative</em> to <strong>ImageBase</strong>. So, in order to find <strong>Virtual Addresses</strong> (the address in memory) of objects or sections, simply add the <strong>Relative Virtual Address</strong> to <strong>OptionalHeader-&gt;ImageBase</strong>. Voilà.</p>
+
+<h3 id="sections"><strong>Sections</strong></h3>
+
+<p>Sections ? Easy stuff.<br />
+Let’s take an example with our <strong>SimpleEXE.exe</strong>’s section table.</p>
+
+<p style="text-align: center;"><img src="/assets/Section_table.png" alt="Address to relocate" /></p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Section name</th>
+      <th>.text</th>
+      <th>.rdata</th>
+      <th>.idata</th>
+      <th>.data</th>
+      <th>.pdata</th>
+      <th>.reloc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Virtual address</td>
+      <td>0x11000</td>
+      <td>0x19000</td>
+      <td>0x1f000</td>
+      <td>0x1c000</td>
+      <td>0x1d000</td>
+      <td>0x23000</td>
+    </tr>
+    <tr>
+      <td>Size of raw data</td>
+      <td>0x7800</td>
+      <td>0x2800</td>
+      <td>0x1000</td>
+      <td>0x200</td>
+      <td>0x2000</td>
+      <td>0x400</td>
+    </tr>
+    <tr>
+      <td>Characterics</td>
+      <td>RX</td>
+      <td>R</td>
+      <td>R</td>
+      <td>RW</td>
+      <td>R</td>
+      <td>R</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>As I told all y’all above, to get object’s memory address it has to be loaded in, just add the object’s <strong>VirtualAddress</strong> to the <strong>ImageBase</strong>.</p>
+
+<p>I <strong>know</strong> you got it, but let’s show an example for the <strong>.text</strong> section:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>VirtualAddress               0x11000
+ImageBase                    0x0000000140000000
+
+Memory offset                0x0000000140011000
+</code></pre></div></div>
+
+<p>It is as simple as that. Repeat for as many sections as necessary.</p>
+
+<h3 id="import-table"><strong>Import table</strong></h3>
+
+<p>Now that our sections are mapped, let’s focus on the import table now. Here is our binary’s IAT:</p>
+
+<p style="text-align: center;"><img src="/assets/IAT.png" alt="Address to relocate" /></p>
+
+<p>What is the problem with the address highlighted in red ?</p>
+
+<p>I am sure you guessed it because <strong>you’re awesome</strong> but let’s explain it anyways.</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>IAT[0] VA = 0x01F790
+</code></pre></div></div>
+
+<p>Chances are there is nothing at this address in memory.<br />
+Let’s open <strong>notepad.exe</strong>’s memory and take a look at what’s in there:</p>
+
+<p style="text-align: center;"><img src="/assets/notepad_mem.png" alt="Address to relocate" /></p>
+
+<p>Ain’t no data at this offset. If we refer to 64-bit address space layout, usually these low addresses are reserved.<br />
+If the binary calls this function during execution, it will receive an <strong>ACCESS_VIOLATION</strong> error and crash.</p>
+
+<p>If you recall, our <strong>imageBase</strong> is <strong>0x140000000</strong>, which is already an indicator of what kind of values we are working with.<br />
+Let’s run a simple program that prints the address of <strong>GetCurrentProcess</strong> in <strong>KERNEL32.dll</strong>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[+] Address of data                 0x7ffe4c251db0 | GetCurrentProcess
+</code></pre></div></div>
+
+<p>Right. The current values in our <strong>IAT</strong> are clearly wrong.</p>
+
+<p>To fix this, we need the list of all the imported DLLs and the functions’ addresses that our binary needs. We obtain it by inspecting our binary. We can then load libraries remotely with the help of <strong>LoadLibraryToProcess</strong> and once this is done, we retrieve the modules’ handles by calling <strong>EnumProcessModules</strong>.<br />
+With that, it is just a matter of calling <strong>GetProcAddress</strong> and patching the binary’s <strong>IAT</strong>.</p>
+
+<p>This method is not the one you would see in a typical reflective loader. Usually, the <em>proper</em> method would be to copy the executable/library directly in the process and <strong>CreateRemoteThread</strong> on a small shellcode built to retrieve the addresses of at least <strong>LoadLibrary</strong> and <strong>GetProcAddress</strong>. The shellcode would then remap and patch the binary within the process, removing the need to do this remotely (which is convenient but extremely suspicious).<br />
+In our case we choose the remote method for the sake of simplicity.</p>
+
+<p>After retrieving addresses and patching, our <strong>IAT</strong> now looks like this:</p>
+
+<p style="text-align: center;"><img src="/assets/iat_fixed.png" alt="Address to relocate" /></p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[+] Address of data                 0x7ffe4e0bb7f0 | HeapAlloc
+[+] Address of data                 0x7ffe4c246350 | HeapFree
+[+] Address of data                 0x7ffe4c246a50 | GetProcessHeap
+[+] Address of data                 0x7ffe4c246790 | GetCurrentThread
+[+] Address of data                 0x7ffe4c266af0 | TerminateThread
+</code></pre></div></div>
+
+<p>Our binary will now be able to call imported functions without trouble.</p>
+
+<p>A picture is worth a thousand words so here is a simple diagram that explains the changes we made to the IAT:</p>
+
+<p style="text-align: center;"><img src="/assets/iat_patching.png" alt="Address to relocate" /></p>
+
+<h3 id="relocations"><strong>Relocations</strong></h3>
+
+<p>One last thing to fix before execution is the <strong>relocation table</strong>. As we saw in the last article, the <strong>relocation table</strong> is a lookup table listing all of the PE file’s offsets requiring patching when the file is loaded at a different address from the one specified in <strong>Optional Header-&gt;ImageBase</strong>.</p>
+
+<p>Let’s say that we’re looking for a space to allocate the binary in. We get an allocation at an address different from <strong>Optional Header-&gt;ImageBase</strong>:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[+] ImageBase                           @ 0x0000000140000000
+[+] Got alloc at                        @ 0x000002CDD3550000
+</code></pre></div></div>
+
+<p>If offsets in our binary are referenced relative to <strong>ImageBase</strong>, this is going to cause trouble if we try to access them and our binary has  been loaded to a different address. That’s why there is a relocation table, <em>for value to be relocated, duh</em>.</p>
+
+<p>If we take a look at address at the first entry of the <strong>relocation table</strong> we have:</p>
+
+<p style="text-align: center;"><img src="/assets/relocation_before.png" alt="Address to relocate" /></p>
+
+<p>If you look closely, you’ll notice that the value above is relative to <strong>ImageBase</strong>, which would be okay if the binary is loaded this offset. If not, we would have to patch it.</p>
+
+<p>To fix it, we’ll use the following formula:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[+] Value to patch                      0x0000000140011A70
+
+[+] Formula:                            value - Imagebase + new_allocation
+[+] Formula:                            0x140011A70 - 0x140000000 + 0x2CDD3550000
+
+[+] Corrected value                     0x000002CDD3561A70
+</code></pre></div></div>
+
+<p>Loop through all values in the relocation table, patch them all and, we are done !</p>
+
+<p style="text-align: center;"><img src="/assets/relocation_after.png" alt="Address to relocate" /></p>
+
+<h1 id="achieving-reflective-loading"><strong>Achieving reflective loading</strong></h1>
+
+<p>Let’s wrap up. Here are the steps we’ll have to code to achieve our goal:</p>
+<ul>
+  <li>Allocate a buffer</li>
+  <li>Copy headers to buffer</li>
+  <li>Map sections to buffer</li>
+  <li>OpenProcess on the target process</li>
+  <li>Allocate memory in the process</li>
+  <li>Get addresses of imported functions and patch IAT</li>
+  <li>Patch relocations table</li>
+  <li>Write buffer to process</li>
+  <li>Start thread at the entry point of the binary</li>
+</ul>
+
+<p>And after long sessions of debugging, we finally <strong>got it</strong>:</p>
+
+<p style="text-align: center;"><img src="/assets/notepad_taskmgr.png" alt="Address to relocate" /></p>
+
+<p style="text-align: center;"><img src="/assets/notepad.png" alt="Address to relocate" /></p>
+
+<p>The SimpleEXE program got executed directly from notepad’s memory… <strong>Great success!</strong></p>
+
+<p>Here is the output of the reflector program:</p>
+
+<details>
+    <summary>PEReflection.exe</summary>
+
+<figure class="highlight"><pre><code class="language-python" data-lang="python"><span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">File</span> <span class="n">C</span><span class="p">:</span>\<span class="p">...</span>\<span class="n">Debug</span>\<span class="n">SimpleEXE</span><span class="p">.</span><span class="n">exe</span> <span class="n">opened</span>
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">File</span> <span class="n">size</span>                           <span class="mh">0x0000e400</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Mapping</span> <span class="nb">file</span> <span class="n">initialized</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Copying</span> <span class="n">sections</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Mapping</span> <span class="n">sections</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">text</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">rdata</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">data</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">pdata</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">idata</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">msvcjmc</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="mi">00</span><span class="n">cfg</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">rsrc</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span>                           <span class="p">.</span><span class="n">reloc</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Opened</span> <span class="n">process</span>                      <span class="mh">0x00000954</span>
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Got</span> <span class="n">alloc</span>                           <span class="o">@</span> <span class="mh">0x000002CDD33F0000</span>
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Delta</span>                               <span class="mh">0x000002CC933F0000</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Handling</span> <span class="n">relocations</span>
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Relocations</span> <span class="n">completed</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Fixing</span> <span class="kn">import</span> <span class="nn">table</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">IAT</span>                               <span class="o">@</span> <span class="mi">000002451025</span><span class="n">C200</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Number</span> <span class="n">of</span> <span class="n">dlls</span>                      <span class="mh">0x00000003</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">KERNEL32</span><span class="p">.</span><span class="n">dll</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">VCRUNTIME140D</span><span class="p">.</span><span class="n">dll</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">ucrtbased</span><span class="p">.</span><span class="n">dll</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Enumerating</span> <span class="n">modules</span> <span class="ow">in</span> <span class="n">remote</span> <span class="n">process</span>
+
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Found</span> <span class="ow">in</span> <span class="n">remote</span> <span class="n">process</span>           <span class="mh">0x00007FFE4C230000</span> <span class="o">|</span> <span class="n">KERNEL32</span><span class="p">.</span><span class="n">DLL</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Found</span> <span class="ow">in</span> <span class="n">remote</span> <span class="n">process</span>           <span class="mh">0x00007FFE17F00000</span> <span class="o">|</span> <span class="n">VCRUNTIME140D</span><span class="p">.</span><span class="n">dll</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Found</span> <span class="ow">in</span> <span class="n">remote</span> <span class="n">process</span>           <span class="mh">0x00007FFE0FCC0000</span> <span class="o">|</span> <span class="n">ucrtbased</span><span class="p">.</span><span class="n">dll</span>
+  <span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Patching</span> <span class="n">IAT</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Import</span> <span class="n">table</span> <span class="n">fixed</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Writing</span> <span class="nb">buffer</span> <span class="n">to</span> <span class="n">process</span>
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Wrote</span> <span class="n">successfully</span>                  <span class="mh">0x24000</span> <span class="n">Bytes</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">remote</span> <span class="n">thread</span>
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">Address</span> <span class="n">of</span> <span class="n">entrypoint</span>               <span class="o">@</span> <span class="mh">0x000002CDD340105F</span>
+
+<span class="p">[</span><span class="o">+</span><span class="p">]</span> <span class="n">All</span> <span class="n">systems</span> <span class="n">go</span></code></pre></figure>
+
+</details>
+
+<h1 id="conclusion"><strong>Conclusion</strong></h1>
+
+<p>This was a really fun subject to dive in. I have a better understanding (and hope you do too <em>winkwink</em>) of PE files and how <em>malicious</em> programs implement simple injection techniques.<br />
+Now that you understand the basics, you can extrapolate this to understand how other injection techniques work (process hollowing, etc.) or maybe try to guess how packing works and how it could be implemented.</p>
+
+<p>There are lots of stuff I did not cover here, but <strong>I hope you liked these first two articles</strong>.<br />
+Next up, I’ll either write about packing or maybe I’ll make a detailed article about <strong>NTFS</strong> and a NTFS parser I developed earlier in 2020.</p>
+
+<p><del>Don’t forget to like, comment and subscribe!</del></p>
+
+<p>See ya!</p>
+
+<h1 id="useful-links"><strong>Useful Links</strong></h1>
+<p><a href="https://en.wikipedia.org/wiki/Portable_Executable">https://en.wikipedia.org/wiki/Portable_Executable</a><br />
+<a href="https://upload.wikimedia.org/wikipedia/commons/1/1b/Portable_Executable_32_bit_Structure_in_SVG_fixed.svg">https://upload.wikimedia.org/wikipedia/commons/1/1b/Portable_Executable_32_bit_Structure_in_SVG_fixed.svg</a><br />
+<a href="https://wiki.osdev.org/PE">https://wiki.osdev.org/PE</a><br />
+<a href="https://docs.microsoft.com/en-us/windows/win32/debug/pe-format">https://docs.microsoft.com/en-us/windows/win32/debug/pe-format</a><br />
+<a href="http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf">http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf</a><br />
+<a href="https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/corkami/PE102posterV1.pdf">https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/corkami/PE102posterV1.pdf</a><br />
+<a href="https://www.aldeid.com/wiki/PE-Portable-executable">https://www.aldeid.com/wiki/PE-Portable-executable</a><br />
+<a href="https://ntcore.com/?page_id=388">https://ntcore.com/?page_id=388</a></p>
+
+  </div><a class="u-url" href="/pe/2021/01/11/pe-in-mem.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col">
+      <!--
+        <ul class="contact-list">
+          <li class="p-name">Skr1x</li>
+          
+          <li class="p-name">All rights reserved © 2020</li>
+        </ul> -->
+        <ul class="contact-list">
+          <li class="p-name">All rights reserved © 2020</li>
+        </ul>
+        <p class="feed-subscribe">
+          <a href="/feed.xml">
+            <svg class="svg-icon orange">
+              <use xlink:href="/assets/minima-social-icons.svg#rss"></use>
+            </svg><span>Subscribe</span>
+          </a>
+        </p>
+      </div>
+      <div class="footer-col">
+        <p>The only blog where you&#39;ll read about cybersecurity and gaze upon pictures of delicious homemade sourdough bread. (I promise to post more about sec&#39; stuff tho)
+</p>
+      </div>
+    </div>
+
+    <div class="social-links"><ul class="social-media-list"><li><a rel="me" href="https://github.com/skr1x" title="skr1x"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg></a></li><li><a rel="me" href="https://twitter.com/skr1x_" title="skr1x_"><svg class="svg-icon grey"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg></a></li></ul>
+</div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

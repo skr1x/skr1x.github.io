@@ -1,5 +1,310 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.1.1">Jekyll</generator><link href="https://skr1x.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://skr1x.github.io/" rel="alternate" type="text/html" /><updated>2020-09-28T01:14:06+02:00</updated><id>https://skr1x.github.io/feed.xml</id><title type="html">Cyberdough</title><subtitle>The only blog where you'll read about cybersecurity and gaze upon pictures of delicious homemade sourdough bread. (I promise to post more about sec' stuff tho)
-</subtitle><author><name>Skr1x</name></author><entry><title type="html">Portable Executable: Introduction</title><link href="https://skr1x.github.io/pe/exe/2020/09/27/pe.html" rel="alternate" type="text/html" title="Portable Executable: Introduction" /><published>2020-09-27T00:00:00+02:00</published><updated>2020-09-27T00:00:00+02:00</updated><id>https://skr1x.github.io/pe/exe/2020/09/27/pe</id><content type="html" xml:base="https://skr1x.github.io/pe/exe/2020/09/27/pe.html">&lt;h1 id=&quot;introduction&quot;&gt;&lt;strong&gt;Introduction&lt;/strong&gt;&lt;/h1&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.1.1">Jekyll</generator><link href="https://skr1x.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://skr1x.github.io/" rel="alternate" type="text/html" /><updated>2021-01-11T13:24:27+01:00</updated><id>https://skr1x.github.io/feed.xml</id><title type="html">Cyberdough</title><subtitle>The only blog where you'll read about cybersecurity and gaze upon pictures of delicious homemade sourdough bread. (I promise to post more about sec' stuff tho)
+</subtitle><author><name>Skr1x</name></author><entry><title type="html">Portable Executable: In memory</title><link href="https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html" rel="alternate" type="text/html" title="Portable Executable: In memory" /><published>2021-01-11T00:00:00+01:00</published><updated>2021-01-11T00:00:00+01:00</updated><id>https://skr1x.github.io/pe/2021/01/11/pe-in-mem</id><content type="html" xml:base="https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html">&lt;h1 id=&quot;introduction&quot;&gt;&lt;strong&gt;Introduction&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;First of all, welcome back! Hope you didn’t choke on all the food you ate during the Christmas as I surely did. Wish you all the best for 2021.&lt;/p&gt;
+
+&lt;p&gt;Let’s recap. Our goal is to emulate Windows’s loader (as simply as we can), load and execute a PE file directly from &lt;strong&gt;memory&lt;/strong&gt; (cf. achieve reflective loading).&lt;/p&gt;
+
+&lt;p&gt;In our &lt;a href=&quot;/pe/2020/09/27/pe.html&quot;&gt;&lt;strong&gt;previous article&lt;/strong&gt;&lt;/a&gt;, we covered how a PE file was structured when it resided &lt;strong&gt;on disk&lt;/strong&gt; and how we could parse it. In this article we are going to cover how to &lt;strong&gt;load&lt;/strong&gt; and &lt;strong&gt;execute&lt;/strong&gt; it.&lt;/p&gt;
+
+&lt;p&gt;&lt;del&gt;But first let me talk about the sponsor of this article, NORDVPN&lt;/del&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;table-of-content&quot;&gt;&lt;strong&gt;Table of content&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;&lt;a href=&quot;#in-memoria&quot;&gt;&lt;strong&gt;In memoria&lt;/strong&gt;&lt;/a&gt;
+    &lt;ul&gt;
+      &lt;li&gt;&lt;a href=&quot;#memory-allocation&quot;&gt;&lt;strong&gt;Memory allocation&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+      &lt;li&gt;&lt;a href=&quot;#mapping&quot;&gt;&lt;strong&gt;Mapping&lt;/strong&gt;&lt;/a&gt;
+        &lt;ul&gt;
+          &lt;li&gt;&lt;a href=&quot;#sections&quot;&gt;&lt;strong&gt;Sections&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+          &lt;li&gt;&lt;a href=&quot;#import-table&quot;&gt;&lt;strong&gt;Import table&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+          &lt;li&gt;&lt;a href=&quot;#relocations&quot;&gt;&lt;strong&gt;Relocations&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+        &lt;/ul&gt;
+      &lt;/li&gt;
+    &lt;/ul&gt;
+  &lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;#achieving-reflective-loading&quot;&gt;&lt;strong&gt;Achieving reflective loading&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;#conclusion&quot;&gt;&lt;strong&gt;Conclusion&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;#useful-links&quot;&gt;&lt;strong&gt;Useful Links&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h1 id=&quot;in-memoria&quot;&gt;&lt;strong&gt;In memoria&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;In this article, we will be working with &lt;strong&gt;SimpleEXE.exe&lt;/strong&gt;, the same PE file that we analyzed last time.&lt;/p&gt;
+
+&lt;h2 id=&quot;memory-allocation&quot;&gt;&lt;strong&gt;Memory allocation&lt;/strong&gt;&lt;/h2&gt;
+
+&lt;p&gt;Right, let’s start. The first step is to find a memory range large enough for our PE file.&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;“How big?”&lt;/strong&gt;, &lt;em&gt;you ask, askingly&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;If you recall my last blog post you &lt;em&gt;must certainly&lt;/em&gt; read, we refer to &lt;strong&gt;OptionalHeader-&amp;gt;SizeOfImage&lt;/strong&gt; to know how much to allocate for the specific PE.&lt;/p&gt;
+
+&lt;p&gt;“&lt;strong&gt;But, where?&lt;/strong&gt;”&lt;/p&gt;
+
+&lt;p&gt;During the executable’s allocation, the loader will attempt to reserve a chunk of memory at address &lt;strong&gt;OptionalHeader-&amp;gt;ImageBase&lt;/strong&gt;.&lt;br /&gt;
+If the address is already occupied or not enough space is available, the loader will allocate at a random address in memory. In that case, relocation will have to be performed when loading the binary or else the execution will fail.&lt;br /&gt;
+Realistically we’ll allocate the buffer using &lt;strong&gt;VirtualAllocEx&lt;/strong&gt; and work with the pointer returned by the function, so relocations are to be expected.&lt;/p&gt;
+
+&lt;h2 id=&quot;mapping&quot;&gt;&lt;strong&gt;Mapping&lt;/strong&gt;&lt;/h2&gt;
+
+&lt;p&gt;Now that we have a buffer to work with, let’s examine how the file will be mapped to memory.&lt;br /&gt;
+If we refer to our previous diagram, here is a broad overview of what happens:&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/pe_inmem.png&quot; alt=&quot;In memory&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Remember all that stuff with &lt;strong&gt;Relative Virtual Address&lt;/strong&gt; and &lt;strong&gt;Real File Offset&lt;/strong&gt; ? Well forget all about them.&lt;/p&gt;
+
+&lt;p&gt;In memory, &lt;strong&gt;Relative Virtual Address&lt;/strong&gt; are &lt;em&gt;relative&lt;/em&gt; to &lt;strong&gt;ImageBase&lt;/strong&gt;. So, in order to find &lt;strong&gt;Virtual Addresses&lt;/strong&gt; (the address in memory) of objects or sections, simply add the &lt;strong&gt;Relative Virtual Address&lt;/strong&gt; to &lt;strong&gt;OptionalHeader-&amp;gt;ImageBase&lt;/strong&gt;. Voilà.&lt;/p&gt;
+
+&lt;h3 id=&quot;sections&quot;&gt;&lt;strong&gt;Sections&lt;/strong&gt;&lt;/h3&gt;
+
+&lt;p&gt;Sections ? Easy stuff.&lt;br /&gt;
+Let’s take an example with our &lt;strong&gt;SimpleEXE.exe&lt;/strong&gt;’s section table.&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/Section_table.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;table&gt;
+  &lt;thead&gt;
+    &lt;tr&gt;
+      &lt;th&gt;Section name&lt;/th&gt;
+      &lt;th&gt;.text&lt;/th&gt;
+      &lt;th&gt;.rdata&lt;/th&gt;
+      &lt;th&gt;.idata&lt;/th&gt;
+      &lt;th&gt;.data&lt;/th&gt;
+      &lt;th&gt;.pdata&lt;/th&gt;
+      &lt;th&gt;.reloc&lt;/th&gt;
+    &lt;/tr&gt;
+  &lt;/thead&gt;
+  &lt;tbody&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Virtual address&lt;/td&gt;
+      &lt;td&gt;0x11000&lt;/td&gt;
+      &lt;td&gt;0x19000&lt;/td&gt;
+      &lt;td&gt;0x1f000&lt;/td&gt;
+      &lt;td&gt;0x1c000&lt;/td&gt;
+      &lt;td&gt;0x1d000&lt;/td&gt;
+      &lt;td&gt;0x23000&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Size of raw data&lt;/td&gt;
+      &lt;td&gt;0x7800&lt;/td&gt;
+      &lt;td&gt;0x2800&lt;/td&gt;
+      &lt;td&gt;0x1000&lt;/td&gt;
+      &lt;td&gt;0x200&lt;/td&gt;
+      &lt;td&gt;0x2000&lt;/td&gt;
+      &lt;td&gt;0x400&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Characterics&lt;/td&gt;
+      &lt;td&gt;RX&lt;/td&gt;
+      &lt;td&gt;R&lt;/td&gt;
+      &lt;td&gt;R&lt;/td&gt;
+      &lt;td&gt;RW&lt;/td&gt;
+      &lt;td&gt;R&lt;/td&gt;
+      &lt;td&gt;R&lt;/td&gt;
+    &lt;/tr&gt;
+  &lt;/tbody&gt;
+&lt;/table&gt;
+
+&lt;p&gt;As I told all y’all above, to get object’s memory address it has to be loaded in, just add the object’s &lt;strong&gt;VirtualAddress&lt;/strong&gt; to the &lt;strong&gt;ImageBase&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;I &lt;strong&gt;know&lt;/strong&gt; you got it, but let’s show an example for the &lt;strong&gt;.text&lt;/strong&gt; section:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;VirtualAddress               0x11000
+ImageBase                    0x0000000140000000
+
+Memory offset                0x0000000140011000
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;It is as simple as that. Repeat for as many sections as necessary.&lt;/p&gt;
+
+&lt;h3 id=&quot;import-table&quot;&gt;&lt;strong&gt;Import table&lt;/strong&gt;&lt;/h3&gt;
+
+&lt;p&gt;Now that our sections are mapped, let’s focus on the import table now. Here is our binary’s IAT:&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/IAT.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;What is the problem with the address highlighted in red ?&lt;/p&gt;
+
+&lt;p&gt;I am sure you guessed it because &lt;strong&gt;you’re awesome&lt;/strong&gt; but let’s explain it anyways.&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;IAT[0] VA = 0x01F790
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Chances are there is nothing at this address in memory.&lt;br /&gt;
+Let’s open &lt;strong&gt;notepad.exe&lt;/strong&gt;’s memory and take a look at what’s in there:&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/notepad_mem.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Ain’t no data at this offset. If we refer to 64-bit address space layout, usually these low addresses are reserved.&lt;br /&gt;
+If the binary calls this function during execution, it will receive an &lt;strong&gt;ACCESS_VIOLATION&lt;/strong&gt; error and crash.&lt;/p&gt;
+
+&lt;p&gt;If you recall, our &lt;strong&gt;imageBase&lt;/strong&gt; is &lt;strong&gt;0x140000000&lt;/strong&gt;, which is already an indicator of what kind of values we are working with.&lt;br /&gt;
+Let’s run a simple program that prints the address of &lt;strong&gt;GetCurrentProcess&lt;/strong&gt; in &lt;strong&gt;KERNEL32.dll&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;[+] Address of data                 0x7ffe4c251db0 | GetCurrentProcess
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Right. The current values in our &lt;strong&gt;IAT&lt;/strong&gt; are clearly wrong.&lt;/p&gt;
+
+&lt;p&gt;To fix this, we need the list of all the imported DLLs and the functions’ addresses that our binary needs. We obtain it by inspecting our binary. We can then load libraries remotely with the help of &lt;strong&gt;LoadLibraryToProcess&lt;/strong&gt; and once this is done, we retrieve the modules’ handles by calling &lt;strong&gt;EnumProcessModules&lt;/strong&gt;.&lt;br /&gt;
+With that, it is just a matter of calling &lt;strong&gt;GetProcAddress&lt;/strong&gt; and patching the binary’s &lt;strong&gt;IAT&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;This method is not the one you would see in a typical reflective loader. Usually, the &lt;em&gt;proper&lt;/em&gt; method would be to copy the executable/library directly in the process and &lt;strong&gt;CreateRemoteThread&lt;/strong&gt; on a small shellcode built to retrieve the addresses of at least &lt;strong&gt;LoadLibrary&lt;/strong&gt; and &lt;strong&gt;GetProcAddress&lt;/strong&gt;. The shellcode would then remap and patch the binary within the process, removing the need to do this remotely (which is convenient but extremely suspicious).&lt;br /&gt;
+In our case we choose the remote method for the sake of simplicity.&lt;/p&gt;
+
+&lt;p&gt;After retrieving addresses and patching, our &lt;strong&gt;IAT&lt;/strong&gt; now looks like this:&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/iat_fixed.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;[+] Address of data                 0x7ffe4e0bb7f0 | HeapAlloc
+[+] Address of data                 0x7ffe4c246350 | HeapFree
+[+] Address of data                 0x7ffe4c246a50 | GetProcessHeap
+[+] Address of data                 0x7ffe4c246790 | GetCurrentThread
+[+] Address of data                 0x7ffe4c266af0 | TerminateThread
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Our binary will now be able to call imported functions without trouble.&lt;/p&gt;
+
+&lt;p&gt;A picture is worth a thousand words so here is a simple diagram that explains the changes we made to the IAT:&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/iat_patching.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;relocations&quot;&gt;&lt;strong&gt;Relocations&lt;/strong&gt;&lt;/h3&gt;
+
+&lt;p&gt;One last thing to fix before execution is the &lt;strong&gt;relocation table&lt;/strong&gt;. As we saw in the last article, the &lt;strong&gt;relocation table&lt;/strong&gt; is a lookup table listing all of the PE file’s offsets requiring patching when the file is loaded at a different address from the one specified in &lt;strong&gt;Optional Header-&amp;gt;ImageBase&lt;/strong&gt;.&lt;/p&gt;
+
+&lt;p&gt;Let’s say that we’re looking for a space to allocate the binary in. We get an allocation at an address different from &lt;strong&gt;Optional Header-&amp;gt;ImageBase&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;[+] ImageBase                           @ 0x0000000140000000
+[+] Got alloc at                        @ 0x000002CDD3550000
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;If offsets in our binary are referenced relative to &lt;strong&gt;ImageBase&lt;/strong&gt;, this is going to cause trouble if we try to access them and our binary has  been loaded to a different address. That’s why there is a relocation table, &lt;em&gt;for value to be relocated, duh&lt;/em&gt;.&lt;/p&gt;
+
+&lt;p&gt;If we take a look at address at the first entry of the &lt;strong&gt;relocation table&lt;/strong&gt; we have:&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/relocation_before.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;If you look closely, you’ll notice that the value above is relative to &lt;strong&gt;ImageBase&lt;/strong&gt;, which would be okay if the binary is loaded this offset. If not, we would have to patch it.&lt;/p&gt;
+
+&lt;p&gt;To fix it, we’ll use the following formula:&lt;/p&gt;
+
+&lt;div class=&quot;language-plaintext highlighter-rouge&quot;&gt;&lt;div class=&quot;highlight&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;[+] Value to patch                      0x0000000140011A70
+
+[+] Formula:                            value - Imagebase + new_allocation
+[+] Formula:                            0x140011A70 - 0x140000000 + 0x2CDD3550000
+
+[+] Corrected value                     0x000002CDD3561A70
+&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
+
+&lt;p&gt;Loop through all values in the relocation table, patch them all and, we are done !&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/relocation_after.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;h1 id=&quot;achieving-reflective-loading&quot;&gt;&lt;strong&gt;Achieving reflective loading&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;Let’s wrap up. Here are the steps we’ll have to code to achieve our goal:&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;Allocate a buffer&lt;/li&gt;
+  &lt;li&gt;Copy headers to buffer&lt;/li&gt;
+  &lt;li&gt;Map sections to buffer&lt;/li&gt;
+  &lt;li&gt;OpenProcess on the target process&lt;/li&gt;
+  &lt;li&gt;Allocate memory in the process&lt;/li&gt;
+  &lt;li&gt;Get addresses of imported functions and patch IAT&lt;/li&gt;
+  &lt;li&gt;Patch relocations table&lt;/li&gt;
+  &lt;li&gt;Write buffer to process&lt;/li&gt;
+  &lt;li&gt;Start thread at the entry point of the binary&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;And after long sessions of debugging, we finally &lt;strong&gt;got it&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/notepad_taskmgr.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/notepad.png&quot; alt=&quot;Address to relocate&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The SimpleEXE program got executed directly from notepad’s memory… &lt;strong&gt;Great success!&lt;/strong&gt;&lt;/p&gt;
+
+&lt;p&gt;Here is the output of the reflector program:&lt;/p&gt;
+
+&lt;details&gt;
+    &lt;summary&gt;PEReflection.exe&lt;/summary&gt;
+
+&lt;figure class=&quot;highlight&quot;&gt;&lt;pre&gt;&lt;code class=&quot;language-python&quot; data-lang=&quot;python&quot;&gt;&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;File&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;C&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;\&lt;span class=&quot;p&quot;&gt;...&lt;/span&gt;\&lt;span class=&quot;n&quot;&gt;Debug&lt;/span&gt;\&lt;span class=&quot;n&quot;&gt;SimpleEXE&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;exe&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;opened&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;File&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;size&lt;/span&gt;                           &lt;span class=&quot;mh&quot;&gt;0x0000e400&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Mapping&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;file&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;initialized&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Copying&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sections&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Mapping&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;sections&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;text&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;rdata&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;data&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;pdata&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;idata&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;msvcjmc&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;00&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;cfg&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;rsrc&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt;                           &lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;reloc&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Opened&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;process&lt;/span&gt;                      &lt;span class=&quot;mh&quot;&gt;0x00000954&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Got&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;alloc&lt;/span&gt;                           &lt;span class=&quot;o&quot;&gt;@&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x000002CDD33F0000&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Delta&lt;/span&gt;                               &lt;span class=&quot;mh&quot;&gt;0x000002CC933F0000&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Handling&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;relocations&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Relocations&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;completed&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Fixing&lt;/span&gt; &lt;span class=&quot;kn&quot;&gt;import&lt;/span&gt; &lt;span class=&quot;nn&quot;&gt;table&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;IAT&lt;/span&gt;                               &lt;span class=&quot;o&quot;&gt;@&lt;/span&gt; &lt;span class=&quot;mi&quot;&gt;000002451025&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;C200&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Number&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;of&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;dlls&lt;/span&gt;                      &lt;span class=&quot;mh&quot;&gt;0x00000003&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Loading&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;KERNEL32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dll&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Loading&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;VCRUNTIME140D&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dll&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Loading&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ucrtbased&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dll&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Enumerating&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;modules&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;remote&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;process&lt;/span&gt;
+
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Found&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;remote&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;process&lt;/span&gt;           &lt;span class=&quot;mh&quot;&gt;0x00007FFE4C230000&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;KERNEL32&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;DLL&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Found&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;remote&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;process&lt;/span&gt;           &lt;span class=&quot;mh&quot;&gt;0x00007FFE17F00000&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;VCRUNTIME140D&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dll&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Found&lt;/span&gt; &lt;span class=&quot;ow&quot;&gt;in&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;remote&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;process&lt;/span&gt;           &lt;span class=&quot;mh&quot;&gt;0x00007FFE0FCC0000&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;|&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;ucrtbased&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;.&lt;/span&gt;&lt;span class=&quot;n&quot;&gt;dll&lt;/span&gt;
+  &lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Patching&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;IAT&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Import&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;table&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;fixed&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Writing&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;buffer&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;to&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;process&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Wrote&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;successfully&lt;/span&gt;                  &lt;span class=&quot;mh&quot;&gt;0x24000&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Bytes&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Creating&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;remote&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;thread&lt;/span&gt;
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;Address&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;of&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;entrypoint&lt;/span&gt;               &lt;span class=&quot;o&quot;&gt;@&lt;/span&gt; &lt;span class=&quot;mh&quot;&gt;0x000002CDD340105F&lt;/span&gt;
+
+&lt;span class=&quot;p&quot;&gt;[&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;]&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;All&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;systems&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;go&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/figure&gt;
+
+&lt;/details&gt;
+
+&lt;h1 id=&quot;conclusion&quot;&gt;&lt;strong&gt;Conclusion&lt;/strong&gt;&lt;/h1&gt;
+
+&lt;p&gt;This was a really fun subject to dive in. I have a better understanding (and hope you do too &lt;em&gt;winkwink&lt;/em&gt;) of PE files and how &lt;em&gt;malicious&lt;/em&gt; programs implement simple injection techniques.&lt;br /&gt;
+Now that you understand the basics, you can extrapolate this to understand how other injection techniques work (process hollowing, etc.) or maybe try to guess how packing works and how it could be implemented.&lt;/p&gt;
+
+&lt;p&gt;There are lots of stuff I did not cover here, but &lt;strong&gt;I hope you liked these first two articles&lt;/strong&gt;.&lt;br /&gt;
+Next up, I’ll either write about packing or maybe I’ll make a detailed article about &lt;strong&gt;NTFS&lt;/strong&gt; and a NTFS parser I developed earlier in 2020.&lt;/p&gt;
+
+&lt;p&gt;&lt;del&gt;Don’t forget to like, comment and subscribe!&lt;/del&gt;&lt;/p&gt;
+
+&lt;p&gt;See ya!&lt;/p&gt;
+
+&lt;h1 id=&quot;useful-links&quot;&gt;&lt;strong&gt;Useful Links&lt;/strong&gt;&lt;/h1&gt;
+&lt;p&gt;&lt;a href=&quot;https://en.wikipedia.org/wiki/Portable_Executable&quot;&gt;https://en.wikipedia.org/wiki/Portable_Executable&lt;/a&gt;&lt;br /&gt;
+&lt;a href=&quot;https://upload.wikimedia.org/wikipedia/commons/1/1b/Portable_Executable_32_bit_Structure_in_SVG_fixed.svg&quot;&gt;https://upload.wikimedia.org/wikipedia/commons/1/1b/Portable_Executable_32_bit_Structure_in_SVG_fixed.svg&lt;/a&gt;&lt;br /&gt;
+&lt;a href=&quot;https://wiki.osdev.org/PE&quot;&gt;https://wiki.osdev.org/PE&lt;/a&gt;&lt;br /&gt;
+&lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/debug/pe-format&quot;&gt;https://docs.microsoft.com/en-us/windows/win32/debug/pe-format&lt;/a&gt;&lt;br /&gt;
+&lt;a href=&quot;http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf&quot;&gt;http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf&lt;/a&gt;&lt;br /&gt;
+&lt;a href=&quot;https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/corkami/PE102posterV1.pdf&quot;&gt;https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/corkami/PE102posterV1.pdf&lt;/a&gt;&lt;br /&gt;
+&lt;a href=&quot;https://www.aldeid.com/wiki/PE-Portable-executable&quot;&gt;https://www.aldeid.com/wiki/PE-Portable-executable&lt;/a&gt;&lt;br /&gt;
+&lt;a href=&quot;https://ntcore.com/?page_id=388&quot;&gt;https://ntcore.com/?page_id=388&lt;/a&gt;&lt;/p&gt;</content><author><name>Skrix</name></author><category term="pe" /><summary type="html">Introduction</summary></entry><entry><title type="html">Portable Executable: Introduction</title><link href="https://skr1x.github.io/pe/2020/09/27/pe.html" rel="alternate" type="text/html" title="Portable Executable: Introduction" /><published>2020-09-27T00:00:00+02:00</published><updated>2020-09-27T00:00:00+02:00</updated><id>https://skr1x.github.io/pe/2020/09/27/pe</id><content type="html" xml:base="https://skr1x.github.io/pe/2020/09/27/pe.html">&lt;h1 id=&quot;introduction&quot;&gt;&lt;strong&gt;Introduction&lt;/strong&gt;&lt;/h1&gt;
 
 &lt;p&gt;Some time ago, I was developing and trying some stuff out. I wanted to see how I could run an executable from memory without writing it on disk and calling &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa&quot;&gt;&lt;strong&gt;CreateProcess&lt;/strong&gt;&lt;/a&gt; on the “.exe” file &lt;em&gt;(for science purposes ofc)&lt;/em&gt;. I went about implementing the simplest loader, calling &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory&quot;&gt;&lt;strong&gt;WriteProcessMemory&lt;/strong&gt;&lt;/a&gt; and &lt;a href=&quot;https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread&quot;&gt;&lt;strong&gt;CreateRemoteThread&lt;/strong&gt;&lt;/a&gt;.&lt;br /&gt;
 I was &lt;em&gt;flabbergasted&lt;/em&gt; when I got multiple &lt;strong&gt;EXCEPTION_ACCESS_VIOLATION&lt;/strong&gt; and my executable wouldn’t execute from memory. I did some quick research at the time, reading about PE sections, mapping in memory, etc. I was kind of clueless of what these articles were talking about.&lt;/p&gt;
@@ -44,6 +349,7 @@ This technique is nothing new and is a good segway to the comprehension of more 
   &lt;/li&gt;
   &lt;li&gt;&lt;a href=&quot;#pe-parser&quot;&gt;&lt;strong&gt;PE: Parser&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
   &lt;li&gt;&lt;a href=&quot;#final-notes&quot;&gt;&lt;strong&gt;Final notes&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;&lt;a href=&quot;#useful-links&quot;&gt;&lt;strong&gt;Useful Links&lt;/strong&gt;&lt;/a&gt;&lt;/li&gt;
 &lt;/ul&gt;
 
 &lt;h1 id=&quot;simpleexeexe&quot;&gt;&lt;strong&gt;SimpleEXE.exe&lt;/strong&gt;&lt;/h1&gt;
@@ -141,7 +447,11 @@ This technique is nothing new and is a good segway to the comprehension of more 
     &lt;/tr&gt;
     &lt;tr&gt;
       &lt;td&gt;Optional header&lt;/td&gt;
-      &lt;td&gt;Contains valuable information about the PE, size of headers, entry point address etc.&lt;br /&gt;Contains data directories describing the location of various critical structures for the PE (Import table, debug information, etc.).&lt;/td&gt;
+      &lt;td&gt;Contains valuable information about the PE, size of headers, entry point address etc.&lt;/td&gt;
+    &lt;/tr&gt;
+    &lt;tr&gt;
+      &lt;td&gt;Data directories&lt;/td&gt;
+      &lt;td&gt;Contains data directories describing the location of various critical structures for the PE (Import table, debug information, etc.).&lt;/td&gt;
     &lt;/tr&gt;
     &lt;tr&gt;
       &lt;td&gt;Sections&lt;/td&gt;
@@ -469,7 +779,7 @@ This field points at the first bytes of code that will be executed.&lt;/p&gt;
 
 &lt;p&gt;Following these &lt;strong&gt;Relative Virtual Addresses (RVA)&lt;/strong&gt;, we are going to analyze the content of each entry.&lt;/p&gt;
 
-&lt;p&gt;We mentionned that the file’s size is &lt;strong&gt;0xE400&lt;/strong&gt;, but we see &lt;strong&gt;RVAs&lt;/strong&gt; like &lt;strong&gt;0x0001F3A0&lt;/strong&gt; for the &lt;strong&gt;Import table&lt;/strong&gt; directory entry for example. &lt;strong&gt;RVAs&lt;/strong&gt; are not a file offset but a &lt;strong&gt;memory offset&lt;/strong&gt; relative to &lt;strong&gt;OptionalHeaders-&amp;gt;ImageBase&lt;/strong&gt;. A conversion has to be made to find the &lt;strong&gt;Real File Offset&lt;/strong&gt; for an entries.&lt;br /&gt;
+&lt;p&gt;We mentioned that the file’s size is &lt;strong&gt;0xE400&lt;/strong&gt;, but we see &lt;strong&gt;RVAs&lt;/strong&gt; like &lt;strong&gt;0x0001F3A0&lt;/strong&gt; for the &lt;strong&gt;Import table&lt;/strong&gt; directory entry for example. &lt;strong&gt;RVAs&lt;/strong&gt; are not a file offset but a &lt;strong&gt;memory offset&lt;/strong&gt; relative to &lt;strong&gt;OptionalHeaders-&amp;gt;ImageBase&lt;/strong&gt;. A conversion has to be made to find the &lt;strong&gt;Real File Offset&lt;/strong&gt; for an entries.&lt;br /&gt;
 This conversion will be explained in the &lt;a href=&quot;#relative-virtual-address&quot;&gt;Relative Virtual Address chapter&lt;/a&gt;.&lt;/p&gt;
 
 &lt;h3 id=&quot;import-table&quot;&gt;&lt;strong&gt;Import table&lt;/strong&gt;&lt;/h3&gt;
@@ -760,7 +1070,7 @@ This conversion will be explained in the &lt;a href=&quot;#relative-virtual-addr
 &lt;span class=&quot;k&quot;&gt;typedef&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;IMAGE_BASE_RELOCATION&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;UNALIGNED&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;*&lt;/span&gt; &lt;span class=&quot;n&quot;&gt;PIMAGE_BASE_RELOCATION&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;;&lt;/span&gt;
 &lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;/div&gt;
 
-&lt;p&gt;Note that this structure only applies to the first two DWORDs. What follows is a list of addresses to patch, two bytes each.&lt;/p&gt;
+&lt;p&gt;Note that this structure only applies to the first two DWORDs. What follows is a list of addresses to patch, two bytes each (see IMAGE_RELOCATION_ENTRY structure below).&lt;/p&gt;
 
 &lt;p style=&quot;text-align: center;&quot;&gt;&lt;img src=&quot;/assets/relocation_table.png&quot; alt=&quot;Relocation table&quot; /&gt;&lt;/p&gt;
 
@@ -4326,7 +4636,7 @@ This conversion will be explained in the &lt;a href=&quot;#relative-virtual-addr
 
 &lt;p&gt;Hope you guys learned something !&lt;/p&gt;
 
-&lt;p&gt;&lt;em&gt;Until next time, I’m Skr1x.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;That’s it for now, until next time, I’m &lt;del&gt;Maddox&lt;/del&gt; Skr1x.&lt;/em&gt;&lt;/p&gt;
 
 &lt;h1 id=&quot;useful-links&quot;&gt;&lt;strong&gt;Useful Links&lt;/strong&gt;&lt;/h1&gt;
 &lt;p&gt;&lt;a href=&quot;https://en.wikipedia.org/wiki/Portable_Executable&quot;&gt;https://en.wikipedia.org/wiki/Portable_Executable&lt;/a&gt;&lt;br /&gt;
@@ -4336,4 +4646,4 @@ This conversion will be explained in the &lt;a href=&quot;#relative-virtual-addr
 &lt;a href=&quot;http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf&quot;&gt;http://www.openrce.org/reference_library/files/reference/PE%20Format.pdf&lt;/a&gt;&lt;br /&gt;
 &lt;a href=&quot;https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/corkami/PE102posterV1.pdf&quot;&gt;https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/corkami/PE102posterV1.pdf&lt;/a&gt;&lt;br /&gt;
 &lt;a href=&quot;https://www.aldeid.com/wiki/PE-Portable-executable&quot;&gt;https://www.aldeid.com/wiki/PE-Portable-executable&lt;/a&gt;&lt;br /&gt;
-&lt;a href=&quot;https://ntcore.com/?page_id=388&quot;&gt;https://ntcore.com/?page_id=388&lt;/a&gt;&lt;/p&gt;</content><author><name>Skr1x</name></author><category term="pe" /><category term="exe" /><summary type="html">Introduction</summary></entry></feed>
+&lt;a href=&quot;https://ntcore.com/?page_id=388&quot;&gt;https://ntcore.com/?page_id=388&lt;/a&gt;&lt;/p&gt;</content><author><name>Skrix</name></author><category term="pe" /><summary type="html">Introduction</summary></entry></feed>

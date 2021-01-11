@@ -6,17 +6,17 @@
 <title>Portable Executable: Introduction | Cyberdough</title>
 <meta name="generator" content="Jekyll v4.1.1" />
 <meta property="og:title" content="Portable Executable: Introduction" />
-<meta name="author" content="Skr1x" />
+<meta name="author" content="Skrix" />
 <meta property="og:locale" content="en_US" />
 <meta name="description" content="Introduction" />
 <meta property="og:description" content="Introduction" />
-<link rel="canonical" href="https://skr1x.github.io/pe/exe/2020/09/27/pe.html" />
-<meta property="og:url" content="https://skr1x.github.io/pe/exe/2020/09/27/pe.html" />
+<link rel="canonical" href="https://skr1x.github.io/pe/2020/09/27/pe.html" />
+<meta property="og:url" content="https://skr1x.github.io/pe/2020/09/27/pe.html" />
 <meta property="og:site_name" content="Cyberdough" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2020-09-27T00:00:00+02:00" />
 <script type="application/ld+json">
-{"@type":"BlogPosting","url":"https://skr1x.github.io/pe/exe/2020/09/27/pe.html","headline":"Portable Executable: Introduction","dateModified":"2020-09-27T00:00:00+02:00","datePublished":"2020-09-27T00:00:00+02:00","author":{"@type":"Person","name":"Skr1x"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://skr1x.github.io/pe/exe/2020/09/27/pe.html"},"description":"Introduction","@context":"https://schema.org"}</script>
+{"author":{"@type":"Person","name":"Skrix"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://skr1x.github.io/pe/2020/09/27/pe.html"},"description":"Introduction","@type":"BlogPosting","url":"https://skr1x.github.io/pe/2020/09/27/pe.html","headline":"Portable Executable: Introduction","dateModified":"2020-09-27T00:00:00+02:00","datePublished":"2020-09-27T00:00:00+02:00","@context":"https://schema.org"}</script>
 <!-- End Jekyll SEO tag -->
 <link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="https://skr1x.github.io/feed.xml" title="Cyberdough" />
 </head>
@@ -45,7 +45,7 @@
         Sep 27, 2020
       </time>• 
           <span itemprop="author" itemscope itemtype="http://schema.org/Person">
-            <span class="p-author h-card" itemprop="name">Skr1x</span></span></p>
+            <span class="p-author h-card" itemprop="name">Skrix</span></span></p>
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
@@ -94,6 +94,7 @@ This technique is nothing new and is a good segway to the comprehension of more 
   </li>
   <li><a href="#pe-parser"><strong>PE: Parser</strong></a></li>
   <li><a href="#final-notes"><strong>Final notes</strong></a></li>
+  <li><a href="#useful-links"><strong>Useful Links</strong></a></li>
 </ul>
 
 <h1 id="simpleexeexe"><strong>SimpleEXE.exe</strong></h1>
@@ -191,7 +192,11 @@ This technique is nothing new and is a good segway to the comprehension of more 
     </tr>
     <tr>
       <td>Optional header</td>
-      <td>Contains valuable information about the PE, size of headers, entry point address etc.<br />Contains data directories describing the location of various critical structures for the PE (Import table, debug information, etc.).</td>
+      <td>Contains valuable information about the PE, size of headers, entry point address etc.</td>
+    </tr>
+    <tr>
+      <td>Data directories</td>
+      <td>Contains data directories describing the location of various critical structures for the PE (Import table, debug information, etc.).</td>
     </tr>
     <tr>
       <td>Sections</td>
@@ -519,7 +524,7 @@ This field points at the first bytes of code that will be executed.</p>
 
 <p>Following these <strong>Relative Virtual Addresses (RVA)</strong>, we are going to analyze the content of each entry.</p>
 
-<p>We mentionned that the file’s size is <strong>0xE400</strong>, but we see <strong>RVAs</strong> like <strong>0x0001F3A0</strong> for the <strong>Import table</strong> directory entry for example. <strong>RVAs</strong> are not a file offset but a <strong>memory offset</strong> relative to <strong>OptionalHeaders-&gt;ImageBase</strong>. A conversion has to be made to find the <strong>Real File Offset</strong> for an entries.<br />
+<p>We mentioned that the file’s size is <strong>0xE400</strong>, but we see <strong>RVAs</strong> like <strong>0x0001F3A0</strong> for the <strong>Import table</strong> directory entry for example. <strong>RVAs</strong> are not a file offset but a <strong>memory offset</strong> relative to <strong>OptionalHeaders-&gt;ImageBase</strong>. A conversion has to be made to find the <strong>Real File Offset</strong> for an entries.<br />
 This conversion will be explained in the <a href="#relative-virtual-address">Relative Virtual Address chapter</a>.</p>
 
 <h3 id="import-table"><strong>Import table</strong></h3>
@@ -810,7 +815,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 <span class="k">typedef</span> <span class="n">IMAGE_BASE_RELOCATION</span> <span class="n">UNALIGNED</span> <span class="o">*</span> <span class="n">PIMAGE_BASE_RELOCATION</span><span class="p">;</span>
 </code></pre></div></div>
 
-<p>Note that this structure only applies to the first two DWORDs. What follows is a list of addresses to patch, two bytes each.</p>
+<p>Note that this structure only applies to the first two DWORDs. What follows is a list of addresses to patch, two bytes each (see IMAGE_RELOCATION_ENTRY structure below).</p>
 
 <p style="text-align: center;"><img src="/assets/relocation_table.png" alt="Relocation table" /></p>
 
@@ -4376,7 +4381,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>Hope you guys learned something !</p>
 
-<p><em>Until next time, I’m Skr1x.</em></p>
+<p><em>That’s it for now, until next time, I’m <del>Maddox</del> Skr1x.</em></p>
 
 <h1 id="useful-links"><strong>Useful Links</strong></h1>
 <p><a href="https://en.wikipedia.org/wiki/Portable_Executable">https://en.wikipedia.org/wiki/Portable_Executable</a><br />
@@ -4388,7 +4393,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 <a href="https://www.aldeid.com/wiki/PE-Portable-executable">https://www.aldeid.com/wiki/PE-Portable-executable</a><br />
 <a href="https://ntcore.com/?page_id=388">https://ntcore.com/?page_id=388</a></p>
 
-  </div><a class="u-url" href="/pe/exe/2020/09/27/pe.html" hidden></a>
+  </div><a class="u-url" href="/pe/2020/09/27/pe.html" hidden></a>
 </article>
 
       </div>
