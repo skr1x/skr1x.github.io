@@ -2,23 +2,27 @@
 <html lang="en"><head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
-<title>Portable Executable: In memory | Cyberdough</title>
-<meta name="generator" content="Jekyll v4.1.1" />
-<meta property="og:title" content="Portable Executable: In memory" />
-<meta name="author" content="Skrix" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Reflective loading: Loading a PE file in memory | Cyberdough</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="Reflective loading: Loading a PE file in memory" />
+<meta name="author" content="Skr1x" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Introduction" />
-<meta property="og:description" content="Introduction" />
-<link rel="canonical" href="https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html" />
-<meta property="og:url" content="https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html" />
+<meta name="description" content="Now that we know about the PE (portable executable) format, let’s talk about reflective loading and what happens in memory." />
+<meta property="og:description" content="Now that we know about the PE (portable executable) format, let’s talk about reflective loading and what happens in memory." />
+<link rel="canonical" href="https://skr1x.github.io/reflective-loading-portable-executable-memory/" />
+<meta property="og:url" content="https://skr1x.github.io/reflective-loading-portable-executable-memory/" />
 <meta property="og:site_name" content="Cyberdough" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2021-01-11T00:00:00+01:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Reflective loading: Loading a PE file in memory" />
+<meta name="twitter:site" content="@skr1x_" />
+<meta name="twitter:creator" content="@Skr1x" />
 <script type="application/ld+json">
-{"author":{"@type":"Person","name":"Skrix"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html"},"description":"Introduction","@type":"BlogPosting","url":"https://skr1x.github.io/pe/2021/01/11/pe-in-mem.html","headline":"Portable Executable: In memory","dateModified":"2021-01-11T00:00:00+01:00","datePublished":"2021-01-11T00:00:00+01:00","@context":"https://schema.org"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Skr1x"},"dateModified":"2021-01-11T00:00:00+01:00","datePublished":"2021-01-11T00:00:00+01:00","description":"Now that we know about the PE (portable executable) format, let’s talk about reflective loading and what happens in memory.","headline":"Reflective loading: Loading a PE file in memory","mainEntityOfPage":{"@type":"WebPage","@id":"https://skr1x.github.io/reflective-loading-portable-executable-memory/"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://skr1x.github.io/assets/logo.png"},"name":"Skr1x"},"url":"https://skr1x.github.io/reflective-loading-portable-executable-memory/"}</script>
 <!-- End Jekyll SEO tag -->
-<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="https://skr1x.github.io/feed.xml" title="Cyberdough" />
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="https://skr1x.github.io/feed.xml" title="Cyberdough" /><meta name="google-site-verification" content="WX8l8JS96shjJhDSLfnJCS-2sKssjf65gqT5Xpt3uLI" />
 </head>
 <body><header class="site-header">
 
@@ -40,22 +44,24 @@
         <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
 
   <header class="post-header">
-    <h1 class="post-title p-name" itemprop="name headline">Portable Executable: In memory</h1>
+    <h1 class="post-title p-name" itemprop="name headline">Reflective loading: Loading a PE file in memory</h1>
     <p class="post-meta"><time class="dt-published" datetime="2021-01-11T00:00:00+01:00" itemprop="datePublished">
         Jan 11, 2021
       </time>• 
           <span itemprop="author" itemscope itemtype="http://schema.org/Person">
-            <span class="p-author h-card" itemprop="name">Skrix</span></span></p>
+            <span class="p-author h-card" itemprop="name">Skr1x</span></span></p>
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h1 id="introduction"><strong>Introduction</strong></h1>
+    <p>Now that we know about the PE (portable executable) format, let’s talk about reflective loading and what happens in memory.</p>
+
+<h1 id="introduction"><strong>Introduction</strong></h1>
 
 <p>First of all, welcome back! Hope you didn’t choke on all the food you ate during the Christmas as I surely did. Wish you all the best for 2021.</p>
 
 <p>Let’s recap. Our goal is to emulate Windows’s loader (as simply as we can), load and execute a PE file directly from <strong>memory</strong> (cf. achieve reflective loading).</p>
 
-<p>In our <a href="/pe/2020/09/27/pe.html"><strong>previous article</strong></a>, we covered how a PE file was structured when it resided <strong>on disk</strong> and how we could parse it. In this article we are going to cover how to <strong>load</strong> and <strong>execute</strong> it.</p>
+<p>In our <a href="/portable-executable-format/"><strong>previous article</strong></a>, we covered how a PE file was structured when it resided <strong>on disk</strong> and how we could parse it. In this article we are going to cover how to <strong>load</strong> and <strong>execute</strong> it.</p>
 
 <p><del>But first let me talk about the sponsor of this article, NORDVPN</del></p>
 
@@ -102,7 +108,7 @@ Realistically we’ll allocate the buffer using <strong>VirtualAllocEx</strong> 
 <p>Now that we have a buffer to work with, let’s examine how the file will be mapped to memory.<br />
 If we refer to our previous diagram, here is a broad overview of what happens:</p>
 
-<p style="text-align: center;"><img src="/assets/pe_inmem.png" alt="In memory" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/pe_inmem.png" alt="In memory" /></p>
 
 <p>Remember all that stuff with <strong>Relative Virtual Address</strong> and <strong>Real File Offset</strong> ? Well forget all about them.</p>
 
@@ -113,7 +119,7 @@ If we refer to our previous diagram, here is a broad overview of what happens:</
 <p>Sections ? Easy stuff.<br />
 Let’s take an example with our <strong>SimpleEXE.exe</strong>’s section table.</p>
 
-<p style="text-align: center;"><img src="/assets/Section_table.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/Section_table.png" alt="Address to relocate" /></p>
 
 <table>
   <thead>
@@ -174,7 +180,7 @@ Memory offset                0x0000000140011000
 
 <p>Now that our sections are mapped, let’s focus on the import table now. Here is our binary’s IAT:</p>
 
-<p style="text-align: center;"><img src="/assets/IAT.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/IAT.png" alt="Address to relocate" /></p>
 
 <p>What is the problem with the address highlighted in red ?</p>
 
@@ -186,7 +192,7 @@ Memory offset                0x0000000140011000
 <p>Chances are there is nothing at this address in memory.<br />
 Let’s open <strong>notepad.exe</strong>’s memory and take a look at what’s in there:</p>
 
-<p style="text-align: center;"><img src="/assets/notepad_mem.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/notepad_mem.png" alt="Address to relocate" /></p>
 
 <p>Ain’t no data at this offset. If we refer to 64-bit address space layout, usually these low addresses are reserved.<br />
 If the binary calls this function during execution, it will receive an <strong>ACCESS_VIOLATION</strong> error and crash.</p>
@@ -207,7 +213,7 @@ In our case we choose the remote method for the sake of simplicity.</p>
 
 <p>After retrieving addresses and patching, our <strong>IAT</strong> now looks like this:</p>
 
-<p style="text-align: center;"><img src="/assets/iat_fixed.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/iat_fixed.png" alt="Address to relocate" /></p>
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[+] Address of data                 0x7ffe4e0bb7f0 | HeapAlloc
 [+] Address of data                 0x7ffe4c246350 | HeapFree
@@ -220,7 +226,7 @@ In our case we choose the remote method for the sake of simplicity.</p>
 
 <p>A picture is worth a thousand words so here is a simple diagram that explains the changes we made to the IAT:</p>
 
-<p style="text-align: center;"><img src="/assets/iat_patching.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/iat_patching.png" alt="Address to relocate" /></p>
 
 <h3 id="relocations"><strong>Relocations</strong></h3>
 
@@ -236,7 +242,7 @@ In our case we choose the remote method for the sake of simplicity.</p>
 
 <p>If we take a look at address at the first entry of the <strong>relocation table</strong> we have:</p>
 
-<p style="text-align: center;"><img src="/assets/relocation_before.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/relocation_before.png" alt="Address to relocate" /></p>
 
 <p>If you look closely, you’ll notice that the value above is relative to <strong>ImageBase</strong>, which would be okay if the binary is loaded this offset. If not, we would have to patch it.</p>
 
@@ -252,7 +258,7 @@ In our case we choose the remote method for the sake of simplicity.</p>
 
 <p>Loop through all values in the relocation table, patch them all and, we are done !</p>
 
-<p style="text-align: center;"><img src="/assets/relocation_after.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/relocation_after.png" alt="Address to relocate" /></p>
 
 <h1 id="achieving-reflective-loading"><strong>Achieving reflective loading</strong></h1>
 
@@ -271,9 +277,9 @@ In our case we choose the remote method for the sake of simplicity.</p>
 
 <p>And after long sessions of debugging, we finally <strong>got it</strong>:</p>
 
-<p style="text-align: center;"><img src="/assets/notepad_taskmgr.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/notepad_taskmgr.png" alt="Address to relocate" /></p>
 
-<p style="text-align: center;"><img src="/assets/notepad.png" alt="Address to relocate" /></p>
+<p style="text-align: center;"><img src="/assets/reflective-loading-memory/notepad.png" alt="Address to relocate" /></p>
 
 <p>The SimpleEXE program got executed directly from notepad’s memory… <strong>Great success!</strong></p>
 
@@ -356,7 +362,7 @@ Next up, I’ll either write about packing or maybe I’ll make a detailed artic
 <a href="https://www.aldeid.com/wiki/PE-Portable-executable">https://www.aldeid.com/wiki/PE-Portable-executable</a><br />
 <a href="https://ntcore.com/?page_id=388">https://ntcore.com/?page_id=388</a></p>
 
-  </div><a class="u-url" href="/pe/2021/01/11/pe-in-mem.html" hidden></a>
+  </div><a class="u-url" href="/reflective-loading-portable-executable-memory/" hidden></a>
 </article>
 
       </div>
@@ -374,7 +380,7 @@ Next up, I’ll either write about packing or maybe I’ll make a detailed artic
           <li class="p-name">All rights reserved © 2020</li>
         </ul> -->
         <ul class="contact-list">
-          <li class="p-name">All rights reserved © 2020</li>
+          <li class="p-name">All rights reserved © 2022</li>
         </ul>
         <p class="feed-subscribe">
           <a href="/feed.xml">
@@ -385,7 +391,7 @@ Next up, I’ll either write about packing or maybe I’ll make a detailed artic
         </p>
       </div>
       <div class="footer-col">
-        <p>The only blog where you&#39;ll read about cybersecurity and gaze upon pictures of delicious homemade sourdough bread. (I promise to post more about sec&#39; stuff tho)
+        <p>An exceptional cybersecurity blog. I&#39;ll regularly *cough cough* post detailed articles about what I&#39;m working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
 </p>
       </div>
     </div>

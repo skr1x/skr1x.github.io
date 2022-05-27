@@ -2,23 +2,27 @@
 <html lang="en"><head>
   <meta charset="utf-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.6.1 -->
-<title>Portable Executable: Introduction | Cyberdough</title>
-<meta name="generator" content="Jekyll v4.1.1" />
-<meta property="og:title" content="Portable Executable: Introduction" />
-<meta name="author" content="Skrix" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.8.0 -->
+<title>Introduction to the PE file format | Cyberdough</title>
+<meta name="generator" content="Jekyll v4.2.2" />
+<meta property="og:title" content="Introduction to the PE file format" />
+<meta name="author" content="Skr1x" />
 <meta property="og:locale" content="en_US" />
-<meta name="description" content="Introduction" />
-<meta property="og:description" content="Introduction" />
-<link rel="canonical" href="https://skr1x.github.io/pe/2020/09/27/pe.html" />
-<meta property="og:url" content="https://skr1x.github.io/pe/2020/09/27/pe.html" />
+<meta name="description" content="Let’s talk about the PE (portable executable) format and explore it in great detail." />
+<meta property="og:description" content="Let’s talk about the PE (portable executable) format and explore it in great detail." />
+<link rel="canonical" href="https://skr1x.github.io/portable-executable-format/" />
+<meta property="og:url" content="https://skr1x.github.io/portable-executable-format/" />
 <meta property="og:site_name" content="Cyberdough" />
 <meta property="og:type" content="article" />
 <meta property="article:published_time" content="2020-09-27T00:00:00+02:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Introduction to the PE file format" />
+<meta name="twitter:site" content="@skr1x_" />
+<meta name="twitter:creator" content="@Skr1x" />
 <script type="application/ld+json">
-{"author":{"@type":"Person","name":"Skrix"},"mainEntityOfPage":{"@type":"WebPage","@id":"https://skr1x.github.io/pe/2020/09/27/pe.html"},"description":"Introduction","@type":"BlogPosting","url":"https://skr1x.github.io/pe/2020/09/27/pe.html","headline":"Portable Executable: Introduction","dateModified":"2020-09-27T00:00:00+02:00","datePublished":"2020-09-27T00:00:00+02:00","@context":"https://schema.org"}</script>
+{"@context":"https://schema.org","@type":"BlogPosting","author":{"@type":"Person","name":"Skr1x"},"dateModified":"2020-09-27T00:00:00+02:00","datePublished":"2020-09-27T00:00:00+02:00","description":"Let’s talk about the PE (portable executable) format and explore it in great detail.","headline":"Introduction to the PE file format","mainEntityOfPage":{"@type":"WebPage","@id":"https://skr1x.github.io/portable-executable-format/"},"publisher":{"@type":"Organization","logo":{"@type":"ImageObject","url":"https://skr1x.github.io/assets/logo.png"},"name":"Skr1x"},"url":"https://skr1x.github.io/portable-executable-format/"}</script>
 <!-- End Jekyll SEO tag -->
-<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="https://skr1x.github.io/feed.xml" title="Cyberdough" />
+<link rel="stylesheet" href="/assets/css/style.css"><link type="application/atom+xml" rel="alternate" href="https://skr1x.github.io/feed.xml" title="Cyberdough" /><meta name="google-site-verification" content="WX8l8JS96shjJhDSLfnJCS-2sKssjf65gqT5Xpt3uLI" />
 </head>
 <body><header class="site-header">
 
@@ -40,16 +44,18 @@
         <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
 
   <header class="post-header">
-    <h1 class="post-title p-name" itemprop="name headline">Portable Executable: Introduction</h1>
+    <h1 class="post-title p-name" itemprop="name headline">Introduction to the PE file format</h1>
     <p class="post-meta"><time class="dt-published" datetime="2020-09-27T00:00:00+02:00" itemprop="datePublished">
         Sep 27, 2020
       </time>• 
           <span itemprop="author" itemscope itemtype="http://schema.org/Person">
-            <span class="p-author h-card" itemprop="name">Skrix</span></span></p>
+            <span class="p-author h-card" itemprop="name">Skr1x</span></span></p>
   </header>
 
   <div class="post-content e-content" itemprop="articleBody">
-    <h1 id="introduction"><strong>Introduction</strong></h1>
+    <p>Let’s talk about the PE (portable executable) format and explore it in great detail.</p>
+
+<h1 id="introduction"><strong>Introduction</strong></h1>
 
 <p>Some time ago, I was developing and trying some stuff out. I wanted to see how I could run an executable from memory without writing it on disk and calling <a href="https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createprocessa"><strong>CreateProcess</strong></a> on the “.exe” file <em>(for science purposes ofc)</em>. I went about implementing the simplest loader, calling <a href="https://docs.microsoft.com/en-us/windows/win32/api/memoryapi/nf-memoryapi-writeprocessmemory"><strong>WriteProcessMemory</strong></a> and <a href="https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-createremotethread"><strong>CreateRemoteThread</strong></a>.<br />
 I was <em>flabbergasted</em> when I got multiple <strong>EXCEPTION_ACCESS_VIOLATION</strong> and my executable wouldn’t execute from memory. I did some quick research at the time, reading about PE sections, mapping in memory, etc. I was kind of clueless of what these articles were talking about.</p>
@@ -101,7 +107,7 @@ This technique is nothing new and is a good segway to the comprehension of more 
 
 <p>In this article we will be analyzing the <strong>PE file</strong> resulting of the following simple program:</p>
 
-<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#include &lt;Windows.h&gt;
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">#include</span> <span class="cpf">&lt;Windows.h&gt;</span><span class="cp">
 </span>
 <span class="n">INT</span> <span class="nf">WinMain</span><span class="p">(</span>
     <span class="n">_In_</span> <span class="n">HINSTANCE</span> <span class="n">hInstance</span><span class="p">,</span>
@@ -154,7 +160,7 @@ This technique is nothing new and is a good segway to the comprehension of more 
 
 <p>This is a simple program that will display in a dialog box the path of the executable file of the current process:</p>
 
-<p style="text-align: center;"><img src="/assets/simpleexe.png" alt="PE file overview" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/simpleexe.png" alt="PE file overview" /></p>
 
 <h1 id="pe-format"><strong>PE: Format</strong></h1>
 
@@ -164,7 +170,7 @@ This technique is nothing new and is a good segway to the comprehension of more 
 
 <p>On a high level, a <strong>PE file</strong> on disk looks like this:</p>
 
-<p style="text-align: center;"><img src="/assets/pe_file.png" alt="PE file overview" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/pe_file.png" alt="PE file overview" /></p>
 
 <p>On the following HxD screenshots in this article, the colors will match the colors of the diagram above.</p>
 
@@ -238,7 +244,7 @@ This technique is nothing new and is a good segway to the comprehension of more 
 
 <p>If we open <strong>SimpleEXE.exe</strong> in HxD, we can observe at offset 0x00 the <strong>DOS header</strong>:</p>
 
-<p style="text-align: center;"><img src="/assets/DOS_header.png" alt="DOS headers" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/DOS_header.png" alt="DOS headers" /></p>
 
 <table>
   <thead>
@@ -293,7 +299,7 @@ This technique is nothing new and is a good segway to the comprehension of more 
 
 <p>At this offset we can observe the <strong>PE (0x5045) signature</strong>:</p>
 
-<p style="text-align: center;"><img src="/assets/NT_header.png" alt="NT headers" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/NT_header.png" alt="NT headers" /></p>
 
 <table>
   <thead>
@@ -370,7 +376,7 @@ They will start to give us valuable information about the PE file’s content.</
 
 <p>Back to <strong>SimpleEXE.exe</strong>:</p>
 
-<p style="text-align: center;"><img src="/assets/Optional_header.png" alt="Optional headers" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/Optional_header.png" alt="Optional headers" /></p>
 
 <table>
   <thead>
@@ -481,7 +487,7 @@ This field points at the first bytes of code that will be executed.</p>
 <span class="p">}</span> <span class="n">IMAGE_DATA_DIRECTORY</span><span class="p">,</span> <span class="o">*</span><span class="n">PIMAGE_DATA_DIRECTORY</span><span class="p">;</span>
 </code></pre></div></div>
 
-<p style="text-align: center;"><img src="/assets/Data_directories.png" alt="Data directories" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/Data_directories.png" alt="Data directories" /></p>
 
 <table>
   <thead>
@@ -531,7 +537,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>The <strong>import table</strong> holds information about what DLLs are used and which of these DLL’s functions are <strong>imported</strong>. If we look at the value in our <strong>Data Directory</strong>:</p>
 
-<p style="text-align: center;"><img src="/assets/Data_directories.png" alt="Data directories" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/Data_directories.png" alt="Data directories" /></p>
 
 <table>
   <thead>
@@ -575,7 +581,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>So each entry is going to be 20 bytes long (5 * sizeof(DWORD) or sizeof(IMAGE_IMPORT_DESCRIPTOR)):</p>
 
-<p style="text-align: center;"><img src="/assets/import_descriptor.png" alt="Import Descriptor" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/import_descriptor.png" alt="Import Descriptor" /></p>
 
 <p>As usual, not all field are highlighted, only relevant ones are. Refer to the original structure in <strong>winnt.h</strong> for more information.</p>
 
@@ -629,7 +635,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p><strong>DLL1</strong>’s name is in fact <strong>KERNEL32.dll</strong>:</p>
 
-<p style="text-align: center;"><img src="/assets/dll_name.png" alt="Name of the DLL imported" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/dll_name.png" alt="Name of the DLL imported" /></p>
 
 <p>And for <strong>DLL2</strong>?</p>
 
@@ -639,7 +645,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p><strong>DLL2</strong>’s name is <strong>VCRUNTIME140D.dll</strong>:</p>
 
-<p style="text-align: center;"><img src="/assets/dll_name2.png" alt="Name of the DLL imported" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/dll_name2.png" alt="Name of the DLL imported" /></p>
 
 <p>What about <strong>OriginalFirstThunk</strong> and <strong>FirstThunk</strong>? Both are <strong>RVAs</strong>.</p>
 
@@ -665,7 +671,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 <div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Relative</span> <span class="n">Virtual</span> <span class="n">Address</span>     <span class="mh">0x0001F3F0</span>
 <span class="n">Real</span> <span class="n">File</span> <span class="n">Offset</span>             <span class="mh">0x0000C9F0</span>
 </code></pre></div></div>
-<p style="text-align: center;"><img src="/assets/import_function_address.png" alt="Import function address" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/import_function_address.png" alt="Import function address" /></p>
 
 <table>
   <thead>
@@ -692,7 +698,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 <span class="n">Real</span> <span class="n">File</span> <span class="n">Offset</span>             <span class="mh">0x0000CD90</span>
 </code></pre></div></div>
 
-<p style="text-align: center;"><img src="/assets/import_function_name.png" alt="Imported function" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/import_function_name.png" alt="Imported function" /></p>
 
 <p><strong>Function1</strong> is in fact <strong>HeapAlloc</strong>.</p>
 
@@ -702,7 +708,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 <span class="n">Real</span> <span class="n">File</span> <span class="n">Offset</span>             <span class="mh">0x0000C600</span>
 </code></pre></div></div>
 
-<p style="text-align: center;"><img src="/assets/IAT.png" alt="IAT" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/IAT.png" alt="IAT" /></p>
 
 <table>
   <thead>
@@ -752,7 +758,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>Looking at <strong>SimpleDLL.dll</strong>, a library that exports two functions, the export table looks like this:</p>
 
-<p style="text-align: center;"><img src="/assets/dll_export_table.png" alt="Export table" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/dll_export_table.png" alt="Export table" /></p>
 
 <table>
   <thead>
@@ -794,7 +800,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 <span class="n">AddressOfNames</span> <span class="n">RFO</span>           <span class="mh">0x0000A210</span>
 </code></pre></div></div>
 
-<p style="text-align: center;"><img src="/assets/dll_export_table2.png" alt="Export table" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/dll_export_table2.png" alt="Export table" /></p>
 
 <div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">RVA</span>                          <span class="mh">0x0001B62A</span>
 <span class="n">RFO</span>                          <span class="mh">0x0000A22A</span>
@@ -817,7 +823,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>Note that this structure only applies to the first two DWORDs. What follows is a list of addresses to patch, two bytes each (see IMAGE_RELOCATION_ENTRY structure below).</p>
 
-<p style="text-align: center;"><img src="/assets/relocation_table.png" alt="Relocation table" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/relocation_table.png" alt="Relocation table" /></p>
 
 <table>
   <thead>
@@ -870,7 +876,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>For the first entry we have:</p>
 
-<p style="text-align: center;"><img src="/assets/relocation_table2.png" alt="Relocation table" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/relocation_table2.png" alt="Relocation table" /></p>
 
 <div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">Entry</span>                        <span class="mh">0xA110</span>
 
@@ -891,7 +897,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>And looking at this address:</p>
 
-<p style="text-align: center;"><img src="/assets/address_to_patch.png" alt="To patch" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/address_to_patch.png" alt="To patch" /></p>
 
 <p>We observe that the value at <strong>0x7D10</strong> is relative to <strong>ImageBase</strong>.</p>
 
@@ -926,7 +932,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>Each entry is 0x28 bytes long.</p>
 
-<p style="text-align: center;"><img src="/assets/Section_table.png" alt="Section table" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/Section_table.png" alt="Section table" /></p>
 
 <p>Here in our example (some sections are omitted):</p>
 
@@ -1109,8 +1115,8 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 
 <p>Finally ! We have the <strong>Real File Offset</strong> of the entry point of the PE. This address contains the opcode <strong>0xE9/JMP</strong>.</p>
 
-<p style="text-align: center;"><img src="/assets/Entry_point.png" alt="Entry point" /></p>
-<p style="text-align: center;"><img src="/assets/ida_entrypoint.png" alt="IDA entry point" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/Entry_point.png" alt="Entry point" /></p>
+<p style="text-align: center;"><img src="/assets/portable-executable-format/ida_entrypoint.png" alt="IDA entry point" /></p>
 
 <p>The following code helps to convert <strong>Relative Virtual Addresses</strong> to <strong>Real File Offsets</strong>:</p>
 
@@ -4393,7 +4399,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
 <a href="https://www.aldeid.com/wiki/PE-Portable-executable">https://www.aldeid.com/wiki/PE-Portable-executable</a><br />
 <a href="https://ntcore.com/?page_id=388">https://ntcore.com/?page_id=388</a></p>
 
-  </div><a class="u-url" href="/pe/2020/09/27/pe.html" hidden></a>
+  </div><a class="u-url" href="/portable-executable-format/" hidden></a>
 </article>
 
       </div>
@@ -4411,7 +4417,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
           <li class="p-name">All rights reserved © 2020</li>
         </ul> -->
         <ul class="contact-list">
-          <li class="p-name">All rights reserved © 2020</li>
+          <li class="p-name">All rights reserved © 2022</li>
         </ul>
         <p class="feed-subscribe">
           <a href="/feed.xml">
@@ -4422,7 +4428,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
         </p>
       </div>
       <div class="footer-col">
-        <p>The only blog where you&#39;ll read about cybersecurity and gaze upon pictures of delicious homemade sourdough bread. (I promise to post more about sec&#39; stuff tho)
+        <p>An exceptional cybersecurity blog. I&#39;ll regularly *cough cough* post detailed articles about what I&#39;m working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
 </p>
       </div>
     </div>
