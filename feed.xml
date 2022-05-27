@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://skr1x.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://skr1x.github.io/" rel="alternate" type="text/html" /><updated>2022-05-27T21:48:28+02:00</updated><id>https://skr1x.github.io/feed.xml</id><title type="html">Cyberdough</title><subtitle>An exceptional cybersecurity blog. I'll regularly *cough cough* post detailed articles about what I'm working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://skr1x.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://skr1x.github.io/" rel="alternate" type="text/html" /><updated>2022-05-28T00:19:13+02:00</updated><id>https://skr1x.github.io/feed.xml</id><title type="html">Cyberdough</title><subtitle>An exceptional cybersecurity blog. I'll regularly *cough cough* post detailed articles about what I'm working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
 </subtitle><author><name>Skr1x</name></author><entry><title type="html">Writeup: Cyber Apocalypse CTF 2022 - Reflection</title><link href="https://skr1x.github.io/writeup-cyber-apocalypse-reflection/" rel="alternate" type="text/html" title="Writeup: Cyber Apocalypse CTF 2022 - Reflection" /><published>2022-05-27T00:00:00+02:00</published><updated>2022-05-27T00:00:00+02:00</updated><id>https://skr1x.github.io/writeup-cyber-apocalypse-reflection</id><content type="html" xml:base="https://skr1x.github.io/writeup-cyber-apocalypse-reflection/"><![CDATA[<p>Last week we played the <strong>Cyber Apocalypse CTF 2022 - Intergalactic Chase</strong> with my team. This article serves as a writeup for the <strong>Reflection</strong> forensic challenge.</p>
 
 <p style="text-align: center;"><img src="/assets/writeup-cyber-apocalypse-reflection/CA_2022_CTF_logo2.png" alt="Cyber Apocalypse CTF Logo" /></p>
@@ -166,7 +166,7 @@ dc 5b c3 00 00 00 00 00 .[......
 python3 vol.py -f ../memory.raw windows.vadinfo.VadInfo --pid 3244 --dump --address 0x170000
 </code></pre></div></div>
 
-<p>According to the function just just analysed, something tells me that what we are looking for is in the memory section @<strong>0xb0000</strong>.</p>
+<p>According to the function we just analysed, something tells me that what we are looking for is in the memory section @<strong>0xb0000</strong>.</p>
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>$ file pid.3244.vad.0xb0000-0xb3fff.dmp
 
@@ -289,7 +289,7 @@ e:      c6 45 8a 77             mov    BYTE PTR [ebp-0x76],0x77
 
 <h1 id="conclusion"><strong>Conclusion</strong></h1>
 
-<p>In a real forensics investigation, we would have spent more time looking a processes, network information, etc. to determine what really happened. But here in a CTF scenario, your goal is to find the flag as fast as possible to continue on with other challenges.</p>
+<p>In a real forensics investigation, we would have spent more time looking at processes, network information and other artifacts to determine what really happened on this device. However in a CTF scenario, our goal is to find the flag as fast as possible to continue on with other challenges.</p>
 
 <p>It was a very fun challenge to solve and I was eager to share my solution. Thanks for reading.<br />
 Byeeeeeeeeeeeeee.</p>
