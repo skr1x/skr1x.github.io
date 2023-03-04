@@ -125,42 +125,26 @@ This technique is nothing new and is a good segway to the comprehension of more 
     <span class="n">_In_</span> <span class="kt">int</span>       <span class="n">nShowCmd</span>
 <span class="p">)</span>
 <span class="p">{</span>
-    <span class="k">typedef</span> <span class="kt">void</span><span class="p">(</span><span class="n">_stdcall</span><span class="o">*</span> <span class="n">FPMESSAGEBOX</span><span class="p">)(</span><span class="n">HWND</span><span class="p">,</span> <span class="n">LPCWSTR</span><span class="p">,</span> <span class="n">LPCWSTR</span><span class="p">,</span> <span class="n">UINT</span><span class="p">);</span>
-    <span class="n">FPMESSAGEBOX</span> <span class="n">fpMessageBox</span><span class="p">;</span>
-
-    <span class="n">HANDLE</span> <span class="n">hUser32ModuleHandle</span><span class="p">;</span>
     <span class="n">LPWSTR</span> <span class="n">lzModuleFilename</span><span class="p">;</span>
+    
+    <span class="n">lzModuleFilename</span> <span class="o">=</span> <span class="p">(</span><span class="n">LPWSTR</span><span class="p">)</span><span class="n">HeapAlloc</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">));</span>
 
-    <span class="n">hUser32ModuleHandle</span> <span class="o">=</span> <span class="n">LoadLibrary</span><span class="p">(</span><span class="n">TEXT</span><span class="p">(</span><span class="s">"User32.dll"</span><span class="p">));</span>
-
-    <span class="k">if</span> <span class="p">(</span><span class="n">hUser32ModuleHandle</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">lzModuleFilename</span><span class="p">)</span>
     <span class="p">{</span>
-        <span class="n">fpMessageBox</span> <span class="o">=</span> <span class="p">(</span><span class="n">FPMESSAGEBOX</span><span class="p">)</span><span class="n">GetProcAddress</span><span class="p">(</span><span class="n">hUser32ModuleHandle</span><span class="p">,</span> <span class="s">"MessageBoxW"</span><span class="p">);</span>
+        <span class="n">GetModuleFileName</span><span class="p">(</span>
+            <span class="nb">NULL</span><span class="p">,</span>
+            <span class="n">lzModuleFilename</span><span class="p">,</span>
+            <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">)</span>
+        <span class="p">);</span>
 
-        <span class="k">if</span> <span class="p">(</span><span class="n">fpMessageBox</span><span class="p">)</span>
-        <span class="p">{</span>
-            <span class="n">lzModuleFilename</span> <span class="o">=</span> <span class="n">HeapAlloc</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">));</span>
+        <span class="n">MessageBox</span><span class="p">(</span>
+            <span class="nb">NULL</span><span class="p">,</span>
+            <span class="n">lzModuleFilename</span><span class="p">,</span>
+            <span class="n">TEXT</span><span class="p">(</span><span class="s">"SimpleEXE"</span><span class="p">),</span>
+            <span class="n">MB_OK</span>
+        <span class="p">);</span>
 
-            <span class="k">if</span> <span class="p">(</span><span class="n">lzModuleFilename</span><span class="p">)</span>
-            <span class="p">{</span>
-                <span class="c1">// Retrieves the path of the executable file of the current process</span>
-                <span class="n">GetModuleFileName</span><span class="p">(</span>
-                    <span class="nb">NULL</span><span class="p">,</span>
-                    <span class="n">lzModuleFilename</span><span class="p">,</span>
-                    <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">)</span>
-                <span class="p">);</span>
-
-                <span class="c1">// Displays a dialog box with the retreived module filename</span>
-                <span class="n">fpMessageBox</span><span class="p">(</span>
-                    <span class="nb">NULL</span><span class="p">,</span>
-                    <span class="n">lzModuleFilename</span><span class="p">,</span>
-                    <span class="n">TEXT</span><span class="p">(</span><span class="s">"SimpleEXE"</span><span class="p">),</span>
-                    <span class="n">MB_OK</span>
-                <span class="p">);</span>
-
-                <span class="n">HeapFree</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">lzModuleFilename</span><span class="p">);</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
+        <span class="n">HeapFree</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">lzModuleFilename</span><span class="p">);</span>
     <span class="p">}</span>
 
     <span class="k">return</span> <span class="n">EXIT_SUCCESS</span><span class="p">;</span>
@@ -4437,7 +4421,7 @@ This conversion will be explained in the <a href="#relative-virtual-address">Rel
         </p>
       </div>
       <div class="footer-col">
-        <p>An exceptional cybersecurity blog. I&#39;ll regularly *cough cough* post detailed articles about what I&#39;m working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
+        <p>An exceptional cybersecurity blog. I regularly *cough cough* post detailed articles about what I&#39;m working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
 </p>
       </div>
     </div>

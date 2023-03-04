@@ -1,13 +1,270 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://skr1x.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://skr1x.github.io/" rel="alternate" type="text/html" /><updated>2022-05-31T10:47:38+02:00</updated><id>https://skr1x.github.io/feed.xml</id><title type="html">Cyberdough</title><subtitle>An exceptional cybersecurity blog. I'll regularly *cough cough* post detailed articles about what I'm working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
-</subtitle><author><name>Skr1x</name></author><entry><title type="html">Writeup: Cyber Apocalypse CTF 2022 - Reflection</title><link href="https://skr1x.github.io/writeup-cyber-apocalypse-reflection/" rel="alternate" type="text/html" title="Writeup: Cyber Apocalypse CTF 2022 - Reflection" /><published>2022-05-27T00:00:00+02:00</published><updated>2022-05-27T00:00:00+02:00</updated><id>https://skr1x.github.io/writeup-cyber-apocalypse-reflection</id><content type="html" xml:base="https://skr1x.github.io/writeup-cyber-apocalypse-reflection/"><![CDATA[<p>Last week we played the <strong>Cyber Apocalypse CTF 2022 - Intergalactic Chase</strong> with my team. This article serves as a writeup for the <strong>Reflection</strong> forensic challenge.</p>
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.2">Jekyll</generator><link href="https://skr1x.github.io/feed.xml" rel="self" type="application/atom+xml" /><link href="https://skr1x.github.io/" rel="alternate" type="text/html" /><updated>2023-03-04T15:10:38+01:00</updated><id>https://skr1x.github.io/feed.xml</id><title type="html">Cyberdough</title><subtitle>An exceptional cybersecurity blog. I regularly *cough cough* post detailed articles about what I'm working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
+</subtitle><author><name>Skr1x</name></author><entry><title type="html">Having fun with KeePass2: DLL Hijacking and hooking APIs</title><link href="https://skr1x.github.io/keepass-dll-hijacking/" rel="alternate" type="text/html" title="Having fun with KeePass2: DLL Hijacking and hooking APIs" /><published>2023-03-04T00:00:00+01:00</published><updated>2023-03-04T00:00:00+01:00</updated><id>https://skr1x.github.io/keepass-dll-hijacking</id><content type="html" xml:base="https://skr1x.github.io/keepass-dll-hijacking/"><![CDATA[<p>With the recent <strong>KeePass2</strong> disputed <a href="https://nvd.nist.gov/vuln/detail/CVE-2023-24055">CVE-2023-24055</a> and all the fuss around it, it motivated me to finish a little project I had started last year.</p>
+
+<p>My goal was to see if I could find a way to intercept the <strong>Master Password</strong> of a <strong>KeePass2</strong> database.<br />
+<strong>For fun and learning ofc.</strong></p>
+
+<p>In this article, we’ll cover:</p>
+<ul>
+  <li>DLL Hijacking</li>
+  <li>Hooking Windows APIs</li>
+</ul>
+
+<h1 id="introduction"><strong>Introduction</strong></h1>
+
+<p>Picture this.<br />
+You are on an engagement, admin on a workstation and just now retrieved a <code class="language-plaintext highlighter-rouge">KeePass2</code> Database.</p>
+
+<p>Problem: <a href="https://github.com/denandz/KeeFarce">KeeFarce</a>/<a href="https://github.com/GhostPack/KeeThief">KeeThief</a> don’t work anymore.</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/obama.gif" alt="Thanks obama" /></p>
+<p> </p>
+
+<p>Let’s find another way to get that <code class="language-plaintext highlighter-rouge">Master Password</code>.</p>
+
+<h1 id="table-of-content"><strong>Table of content</strong></h1>
+
+<!-- MarkdownTOC -->
+
+<ul>
+  <li><a href="#dll-hijacking"><strong>DLL Hijacking</strong></a>
+    <ul>
+      <li><a href="#was-ist-das"><strong>Was ist das?</strong></a></li>
+      <li><a href="#does-this-also-apply-to-keepass"><strong>Does this also apply to KeePass?</strong></a></li>
+      <li><a href="#target-dll"><strong>Target DLL</strong></a></li>
+    </ul>
+  </li>
+  <li><a href="#hooking-windows-apis"><strong>Hooking Windows APIs</strong></a>
+    <ul>
+      <li><a href="#messageboxw-example"><strong>MessageBoxW Example</strong></a></li>
+      <li><a href="#hook-the-box"><strong>Hook the box</strong></a></li>
+    </ul>
+  </li>
+  <li><a href="#automatic-code-generation"><strong>Automatic code generation</strong></a></li>
+  <li><a href="#when-everything-comes-together"><strong>When everything comes together</strong></a></li>
+  <li><a href="#conclusion"><strong>Conclusion</strong></a></li>
+  <li><a href="#useful-links"><strong>Useful Links</strong></a></li>
+</ul>
+
+<!-- /MarkdownTOC -->
+
+<h1 id="dll-hijacking"><strong>DLL Hijacking</strong></h1>
+
+<h2 id="was-ist-das"><strong>Was ist das?</strong></h2>
+
+<p>DLL hijacking is a type of attack where you take advantage of an application’s search order for loading dynamic-link libraries.</p>
+
+<p>When an application attempts to load a DLL file, it will search for the file in a <a href="https://learn.microsoft.com/en-us/windows/win32/dlls/dynamic-link-library-search-order#factors-that-affect-searchingpp">specific order</a>. The order is as follows:</p>
+<ul>
+  <li>The directory from which the application loaded</li>
+  <li>The system directory: <code class="language-plaintext highlighter-rouge">C:\Windows\System32</code></li>
+  <li>The 16-bit system directory: <code class="language-plaintext highlighter-rouge">C:\Windows\System</code></li>
+  <li>The Windows directory: <code class="language-plaintext highlighter-rouge">C:\Windows</code></li>
+  <li>The current directory</li>
+  <li>Directories specified in the <code class="language-plaintext highlighter-rouge">PATH</code> environment variable</li>
+</ul>
+
+<p>If an attacker is able to place a malicious DLL file in one of these directories with the same name as a legitimate DLL file, the application will load the malicious DLL instead of the legitimate one, allowing the attacker to execute arbitrary code in the process.</p>
+
+<h2 id="does-this-also-apply-to-keepass"><strong>Does this also apply to KeePass?</strong></h2>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/yes.png" alt="YES" /></p>
+
+<h2 id="target-dll"><strong>Target DLL</strong></h2>
+
+<p>The easiest way to find potential hijackable DLL is to search with <a href="https://learn.microsoft.com/en-us/sysinternals/">promon</a>. Search for <code class="language-plaintext highlighter-rouge">CreateFile</code> on a DLL that returns with the error <code class="language-plaintext highlighter-rouge">NAME NOT FOUND</code>, such as this one here:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/procmon.png" alt="procmon speleology" /></p>
+
+<p>What is happening?<br />
+Here KeePass tries to a DLL called <code class="language-plaintext highlighter-rouge">UxTheme.dll</code>, but tries to load it for its own installation folder in <code class="language-plaintext highlighter-rouge">C:\Program Files\KeePass Password Safe 2</code>.<br />
+However, this is normally a system DLL and is present in <code class="language-plaintext highlighter-rouge">C:\Windows\System32</code>:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/real_dll.png" alt="UxTheme.dll in System32" /></p>
+
+<p>Thus, this DLL might be a good candidate for hijacking.</p>
+
+<p>Let’s compile a DLL and try to see if it gets loaded in <code class="language-plaintext highlighter-rouge">KeePass2</code> if we rename it. We’ll use this code:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">BOOL</span> <span class="n">APIENTRY</span> <span class="nf">DllMain</span><span class="p">(</span>
+    <span class="n">HMODULE</span> <span class="n">hModule</span><span class="p">,</span>
+    <span class="n">DWORD</span>  <span class="n">ul_reason_for_call</span><span class="p">,</span>
+    <span class="n">LPVOID</span> <span class="n">lpReserved</span>
+<span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">WPP_INIT_TRACING</span><span class="p">(</span><span class="s">L"Test"</span><span class="p">);</span>
+
+    <span class="k">switch</span> <span class="p">(</span><span class="n">ul_reason_for_call</span><span class="p">)</span>
+    <span class="p">{</span>
+    <span class="k">case</span> <span class="n">DLL_PROCESS_ATTACH</span><span class="p">:</span>
+        <span class="n">TraceEvents</span><span class="p">(</span><span class="n">TRACE_LEVEL_VERBOSE</span><span class="p">,</span> <span class="n">GENERAL</span><span class="p">,</span> <span class="s">"[+ dllmain] DLL_PROCESS_ATTACH</span><span class="se">\n</span><span class="s">"</span><span class="p">);</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">TRUE</span><span class="p">;</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>Notice the call to <code class="language-plaintext highlighter-rouge">TraceEvents</code> instead of a <code class="language-plaintext highlighter-rouge">printf</code>. This is because as we are working with a DLL, there is no easy way to get its output.</p>
+
+<p><code class="language-plaintext highlighter-rouge">TraceEvents</code> uses the <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/wpp-software-tracing">Windows software trace preprocessor (WPP)</a>, that is a component of <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/event-tracing-for-windows--etw-">ETW</a>.<br />
+We’ll be able to see our events in <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/traceview">TraceView</a>.</p>
+
+<p>Now that we have our DLL, let’s move it to <code class="language-plaintext highlighter-rouge">C:\Program Files\KeePass Password Safe 2</code> and rename it to <code class="language-plaintext highlighter-rouge">UxTheme.dll</code>:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/dll_in_folder.png" alt="Dropping the DLL in KeePass' folder" /></p>
+
+<p>And run KeePass:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/dll_hijacking.png" alt="DLL_PROCESS_ATTACH when launching KeePass2" /></p>
+
+<p>Yeah!! It worked. We have a log in <a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/traceview">TraceView</a> showing our DLL loaded in <code class="language-plaintext highlighter-rouge">KeePass2</code>.</p>
+
+<p>That was easy. Now what?</p>
+
+<h1 id="hooking-windows-apis"><strong>Hooking Windows APIs</strong></h1>
+
+<p>Hooking allows you to intercept and/or modify the behavior of functions called by a given program. In our case, we want to be able to log parameters and return values of Windows API calls.</p>
+
+<p>In the following diagram, you can see a normal API call (in green) versus a hooked API call (in red):</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/hooked_graph.png" alt="Hooked call" /></p>
+
+<p>Fun fact, that is also how userland AV/EDRs monitor API calls.</p>
+
+<p>I started working on a custom hooking engine, before stumbling upon Microsoft’s own library to do precisely that: <a href="https://github.com/microsoft/Detours">Detours</a></p>
+
+<p>I won’t go into details on the implementation of the hooks as documentation is available online.</p>
+
+<h2 id="messageboxw-example"><strong>MessageBoxW Example</strong></h2>
+
+<p>Let’s start simple with a <code class="language-plaintext highlighter-rouge">MessageBoxW</code> call.</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">MessageBoxW</span><span class="p">(</span>
+    <span class="nb">NULL</span><span class="p">,</span>
+    <span class="n">TEXT</span><span class="p">(</span><span class="s">"Hello Twitter!"</span><span class="p">),</span>
+    <span class="n">TEXT</span><span class="p">(</span><span class="s">"SimpleEXE"</span><span class="p">),</span>
+    <span class="n">MB_OK</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<p>If we take a look at the documentation for <a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-messageboxw">MessageBoxW</a> on MSDN, we get this function prototype:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">int</span> <span class="nf">MessageBoxW</span><span class="p">(</span>
+  <span class="p">[</span><span class="n">in</span><span class="p">,</span> <span class="n">optional</span><span class="p">]</span> <span class="n">HWND</span>    <span class="n">hWnd</span><span class="p">,</span>
+  <span class="p">[</span><span class="n">in</span><span class="p">,</span> <span class="n">optional</span><span class="p">]</span> <span class="n">LPCWSTR</span> <span class="n">lpText</span><span class="p">,</span>
+  <span class="p">[</span><span class="n">in</span><span class="p">,</span> <span class="n">optional</span><span class="p">]</span> <span class="n">LPCWSTR</span> <span class="n">lpCaption</span><span class="p">,</span>
+  <span class="p">[</span><span class="n">in</span><span class="p">]</span>           <span class="n">UINT</span>    <span class="n">uType</span>
+<span class="p">);</span>
+</code></pre></div></div>
+
+<p>Our hook function to log the <code class="language-plaintext highlighter-rouge">lpText</code> and <code class="language-plaintext highlighter-rouge">lpCaption</code> parameter would look something like this:</p>
+
+<div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">int</span> <span class="p">(</span><span class="o">*</span><span class="n">real_MessageBoxW</span><span class="p">)(</span><span class="n">HWND</span> <span class="n">hWnd</span><span class="p">,</span> <span class="n">LPCWSTR</span> <span class="n">lpText</span><span class="p">,</span> <span class="n">LPCWSTR</span> <span class="n">lpCaption</span><span class="p">,</span> <span class="n">UINT</span> <span class="n">uType</span><span class="p">)</span> <span class="o">=</span> <span class="n">MessageBoxW</span><span class="p">;</span>
+<span class="kt">int</span> <span class="nf">hook_MessageBoxW</span><span class="p">(</span><span class="n">HWND</span> <span class="n">hWnd</span><span class="p">,</span> <span class="n">LPCWSTR</span> <span class="n">lpText</span><span class="p">,</span> <span class="n">LPCWSTR</span> <span class="n">lpCaption</span><span class="p">,</span> <span class="n">UINT</span> <span class="n">uType</span><span class="p">)</span>
+<span class="p">{</span>
+    <span class="n">TraceEvents</span><span class="p">(</span><span class="n">TRACE_LEVEL_VERBOSE</span><span class="p">,</span> <span class="n">GENERAL</span><span class="p">,</span> <span class="s">"[+ Hook] MessageBoxW(lpText=%ls, lpCaption=%ls, uType=%u)"</span><span class="p">,</span> <span class="n">lpText</span><span class="p">,</span> <span class="n">lpCaption</span><span class="p">,</span> <span class="n">uType</span><span class="p">);</span>
+    <span class="k">return</span> <span class="n">real_MessageBoxW</span><span class="p">(</span><span class="n">hWnd</span><span class="p">,</span> <span class="n">lpText</span><span class="p">,</span> <span class="n">lpCaption</span><span class="p">,</span> <span class="n">uType</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div></div>
+
+<p>This code is pretty simple. When <code class="language-plaintext highlighter-rouge">MessageBoxW</code> is called, it will first log the arguments using <code class="language-plaintext highlighter-rouge">TraceEvents</code> before resuming execution to the “real” <code class="language-plaintext highlighter-rouge">MessageBoxW</code>.</p>
+
+<p>Let’s try it out!</p>
+
+<h2 id="hook-the-box"><strong>Hook the box</strong></h2>
+
+<p>This was tested with a custom loader that injects the DLL when starting the process. And when the <code class="language-plaintext highlighter-rouge">MessageBox</code> appears:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/detour_mb.png" alt="Logging the password in traceview" /></p>
+
+<p>The function call gets logged in TraceView! With the arguments and all.</p>
+
+<p>Now, imagine being able to <strong>run code in a sensitive process</strong> and being able to <strong>intercept functions that handle sensitive data</strong>.</p>
+
+<h1 id="automatic-code-generation"><strong>Automatic code generation</strong></h1>
+
+<p>But first, code generation.</p>
+
+<p>Now that we have a first working example of hooking, we have to scale it up. There are a lot of functions in the Windows API. Remember, our objective is to intercept the <strong>Master Password</strong> of the database, when it is typed.</p>
+
+<p>I’m clearly not writing the code for each Windows API function myself. Ain’t nobody got time for that. I went for a Python script and a Json file to generate the code for the hooking dll.</p>
+
+<p><a href="https://learn.microsoft.com/en-us/windows/win32/api/">MSDN</a> is your best friend for documentation, or you could also check header files in Visual Studio.<br />
+Here is a quick pick of the json file:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/json.png" alt="Json file with fuction prototypes" /></p>
+
+<p>And the generation:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/dll_generation.png" alt="DLL generation output" /></p>
+
+<p>The default code generation invokes <code class="language-plaintext highlighter-rouge">TraceEvents</code> to log function calls and arguments. Here is a sample of the generated code:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/generated_code2.png" alt="Generated code" /></p>
+
+<p>It looks a lot like the code in our first example but is generated automatically, as long as the function is added to the json file. I also added custom code snippets to extend functionalities if necessary. That way we can log return values, print arguments in a specific way, etc.</p>
+
+<p>And just like that, we have working code generation. We can monitor any Windows API function that we want by adding it’s prototype to the json file!</p>
+
+<h1 id="when-everything-comes-together"><strong>When everything comes together</strong></h1>
+
+<p>While testing, I narrowed my search to function that handle strings and clipboard activity. After a bit of research I found two interesting API calls for our use case:</p>
+
+<ul>
+  <li><a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setclipboarddata">SetClipboardData</a>: Places data on the clipboard in a specified clipboard format
+    <div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="n">HANDLE</span> <span class="nf">SetClipboardData</span><span class="p">(</span>
+<span class="p">[</span><span class="n">in</span><span class="p">]</span>           <span class="n">UINT</span>   <span class="n">uFormat</span><span class="p">,</span>
+<span class="p">[</span><span class="n">in</span><span class="p">,</span> <span class="n">optional</span><span class="p">]</span> <span class="n">HANDLE</span> <span class="n">hMem</span>
+<span class="p">);</span>
+</code></pre></div>    </div>
+  </li>
+  <li><a href="https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-tounicodeex">ToUnicodeEx</a>: Translates the specified virtual-key code and keyboard state to the corresponding Unicode character or characters
+    <div class="language-c highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kt">int</span> <span class="nf">ToUnicodeEx</span><span class="p">(</span>
+<span class="p">[</span><span class="n">in</span><span class="p">]</span>           <span class="n">UINT</span>       <span class="n">wVirtKey</span><span class="p">,</span>
+<span class="p">[</span><span class="n">in</span><span class="p">]</span>           <span class="n">UINT</span>       <span class="n">wScanCode</span><span class="p">,</span>
+<span class="p">[</span><span class="n">in</span><span class="p">]</span>           <span class="k">const</span> <span class="n">BYTE</span> <span class="o">*</span><span class="n">lpKeyState</span><span class="p">,</span>
+<span class="p">[</span><span class="n">out</span><span class="p">]</span>          <span class="n">LPWSTR</span>     <span class="n">pwszBuff</span><span class="p">,</span>
+<span class="p">[</span><span class="n">in</span><span class="p">]</span>           <span class="kt">int</span>        <span class="n">cchBuff</span><span class="p">,</span>
+<span class="p">[</span><span class="n">in</span><span class="p">]</span>           <span class="n">UINT</span>       <span class="n">wFlags</span><span class="p">,</span>
+<span class="p">[</span><span class="n">in</span><span class="p">,</span> <span class="n">optional</span><span class="p">]</span> <span class="n">HKL</span>        <span class="n">dwhkl</span>
+<span class="p">);</span>
+</code></pre></div>    </div>
+  </li>
+</ul>
+
+<p>After generating hooks for those two functions, we copy the DLL to <code class="language-plaintext highlighter-rouge">C:\Program Files\KeePass Password Safe 2</code> and rename it to <code class="language-plaintext highlighter-rouge">UxTheme.dll</code>.</p>
+
+<p>And now, let’s run <code class="language-plaintext highlighter-rouge">KeePass2</code> again and type the password to unlock the database:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/hello_twitter.png" alt="Logging the password in traceview" /></p>
+
+<p>How cool is that? The password gets logged in TraceView!</p>
+
+<p>Entries in the database can also be intercepted when <code class="language-plaintext highlighter-rouge">CTRL+C</code> is pressed, thanks to the hook on <code class="language-plaintext highlighter-rouge">SetClipboardData</code>:</p>
+
+<p style="text-align: center;"><img src="/assets/keepass-dll-hijacking/clipboard_hook.png" alt="Clipboard hook" /></p>
+
+<h1 id="conclusion"><strong>Conclusion</strong></h1>
+<p>I still have some work to do to write the password to a file but you got the idea. Hope you liked what you read and learned something new today.</p>
+
+<p>I don’t have a comment section but send me a message over on <a href="https://twitter.com/skr1x_">Twitter</a> before the platform disappears haha.</p>
+
+<h1 id="useful-links"><strong>Useful Links</strong></h1>
+<p><a href="https://keepass.info/">https://keepass.info/</a></p>
+
+<p><a href="https://learn.microsoft.com/en-us/sysinternals/">https://learn.microsoft.com/en-us/sysinternals/</a></p>
+
+<p><a href="https://github.com/microsoft/Detours">https://github.com/microsoft/Detours</a></p>
+
+<p><a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/traceview">https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/traceview</a> 
+<a href="https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/wpp-software-tracing">https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/wpp-software-tracing</a></p>]]></content><author><name>Skr1x</name></author><category term="reverse" /><category term="pe" /><category term="windows" /><category term="hijacking" /><summary type="html"><![CDATA[With the recent KeePass2 disputed CVE-2023-24055 and all the fuss around it, it motivated me to finish a little project I had started last year.]]></summary><media:thumbnail xmlns:media="http://search.yahoo.com/mrss/" url="https://skr1x.github.io/assets/keepass-dll-hijacking/preview.png" /><media:content medium="image" url="https://skr1x.github.io/assets/keepass-dll-hijacking/preview.png" xmlns:media="http://search.yahoo.com/mrss/" /></entry><entry><title type="html">Writeup: Cyber Apocalypse CTF 2022 - Reflection</title><link href="https://skr1x.github.io/writeup-cyber-apocalypse-reflection/" rel="alternate" type="text/html" title="Writeup: Cyber Apocalypse CTF 2022 - Reflection" /><published>2022-05-27T00:00:00+02:00</published><updated>2022-05-27T00:00:00+02:00</updated><id>https://skr1x.github.io/writeup-cyber-apocalypse-reflection</id><content type="html" xml:base="https://skr1x.github.io/writeup-cyber-apocalypse-reflection/"><![CDATA[<p>Last week we played the <strong>Cyber Apocalypse CTF 2022 - Intergalactic Chase</strong> with my team. This article serves as a writeup for the <strong>Reflection</strong> forensic challenge.</p>
 
 <p style="text-align: center;"><img src="/assets/writeup-cyber-apocalypse-reflection/CA_2022_CTF_logo2.png" alt="Cyber Apocalypse CTF Logo" /></p>
 
 <p>Pretty fun challenge and relevant to the previous articles on this blog. If you haven’t already, go take a look at them (<a href="/portable-executable-format/"><strong>PE format</strong></a> and especially <a href="/reflective-loading-portable-executable-memory/"><strong>Reflective loading</strong></a>). Enjoy!</p>
 
-<h1 id="the-actual-writeup">The actual writeup</h1>
+<h1 id="the-actual-writeup"><strong>The actual writeup</strong></h1>
 
-<h2 id="introduction">Introduction</h2>
+<h2 id="introduction"><strong>Introduction</strong></h2>
 
 <p>As a quick introduction to the challenge, we get this few lines of text:</p>
 
@@ -29,7 +286,7 @@ memory.raw: data
 
 <p>It appears to be a memory dump. Let’s get cracking.</p>
 
-<h2 id="analysis">Analysis</h2>
+<h2 id="analysis"><strong>Analysis</strong></h2>
 
 <p>To perform the analysis, I’ll be using the well known <a href="https://github.com/volatilityfoundation/volatility3"><strong>Volatility3</strong></a>. Clearly the best tool out there atm to perform <strong>memory analysis</strong>.</p>
 
@@ -130,7 +387,7 @@ dc 5b c3 00 00 00 00 00 .[......
 
 <p>But that is not all.</p>
 
-<p>If we take a look the disassembled asm code for the <strong>0x170000</strong> range. A few things a number of things:</p>
+<p>If we take a look the disassembled asm code for the <strong>0x170000</strong> range. A few things stand out:</p>
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[...]
 0x170000:   push    ebx
@@ -668,42 +925,26 @@ This technique is nothing new and is a good segway to the comprehension of more 
     <span class="n">_In_</span> <span class="kt">int</span>       <span class="n">nShowCmd</span>
 <span class="p">)</span>
 <span class="p">{</span>
-    <span class="k">typedef</span> <span class="kt">void</span><span class="p">(</span><span class="n">_stdcall</span><span class="o">*</span> <span class="n">FPMESSAGEBOX</span><span class="p">)(</span><span class="n">HWND</span><span class="p">,</span> <span class="n">LPCWSTR</span><span class="p">,</span> <span class="n">LPCWSTR</span><span class="p">,</span> <span class="n">UINT</span><span class="p">);</span>
-    <span class="n">FPMESSAGEBOX</span> <span class="n">fpMessageBox</span><span class="p">;</span>
-
-    <span class="n">HANDLE</span> <span class="n">hUser32ModuleHandle</span><span class="p">;</span>
     <span class="n">LPWSTR</span> <span class="n">lzModuleFilename</span><span class="p">;</span>
+    
+    <span class="n">lzModuleFilename</span> <span class="o">=</span> <span class="p">(</span><span class="n">LPWSTR</span><span class="p">)</span><span class="n">HeapAlloc</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">));</span>
 
-    <span class="n">hUser32ModuleHandle</span> <span class="o">=</span> <span class="n">LoadLibrary</span><span class="p">(</span><span class="n">TEXT</span><span class="p">(</span><span class="s">"User32.dll"</span><span class="p">));</span>
-
-    <span class="k">if</span> <span class="p">(</span><span class="n">hUser32ModuleHandle</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">lzModuleFilename</span><span class="p">)</span>
     <span class="p">{</span>
-        <span class="n">fpMessageBox</span> <span class="o">=</span> <span class="p">(</span><span class="n">FPMESSAGEBOX</span><span class="p">)</span><span class="n">GetProcAddress</span><span class="p">(</span><span class="n">hUser32ModuleHandle</span><span class="p">,</span> <span class="s">"MessageBoxW"</span><span class="p">);</span>
+        <span class="n">GetModuleFileName</span><span class="p">(</span>
+            <span class="nb">NULL</span><span class="p">,</span>
+            <span class="n">lzModuleFilename</span><span class="p">,</span>
+            <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">)</span>
+        <span class="p">);</span>
 
-        <span class="k">if</span> <span class="p">(</span><span class="n">fpMessageBox</span><span class="p">)</span>
-        <span class="p">{</span>
-            <span class="n">lzModuleFilename</span> <span class="o">=</span> <span class="n">HeapAlloc</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">));</span>
+        <span class="n">MessageBox</span><span class="p">(</span>
+            <span class="nb">NULL</span><span class="p">,</span>
+            <span class="n">lzModuleFilename</span><span class="p">,</span>
+            <span class="n">TEXT</span><span class="p">(</span><span class="s">"SimpleEXE"</span><span class="p">),</span>
+            <span class="n">MB_OK</span>
+        <span class="p">);</span>
 
-            <span class="k">if</span> <span class="p">(</span><span class="n">lzModuleFilename</span><span class="p">)</span>
-            <span class="p">{</span>
-                <span class="c1">// Retrieves the path of the executable file of the current process</span>
-                <span class="n">GetModuleFileName</span><span class="p">(</span>
-                    <span class="nb">NULL</span><span class="p">,</span>
-                    <span class="n">lzModuleFilename</span><span class="p">,</span>
-                    <span class="n">MAX_PATH</span> <span class="o">*</span> <span class="k">sizeof</span><span class="p">(</span><span class="n">WCHAR</span><span class="p">)</span>
-                <span class="p">);</span>
-
-                <span class="c1">// Displays a dialog box with the retreived module filename</span>
-                <span class="n">fpMessageBox</span><span class="p">(</span>
-                    <span class="nb">NULL</span><span class="p">,</span>
-                    <span class="n">lzModuleFilename</span><span class="p">,</span>
-                    <span class="n">TEXT</span><span class="p">(</span><span class="s">"SimpleEXE"</span><span class="p">),</span>
-                    <span class="n">MB_OK</span>
-                <span class="p">);</span>
-
-                <span class="n">HeapFree</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">lzModuleFilename</span><span class="p">);</span>
-            <span class="p">}</span>
-        <span class="p">}</span>
+        <span class="n">HeapFree</span><span class="p">(</span><span class="n">GetProcessHeap</span><span class="p">(),</span> <span class="mi">0</span><span class="p">,</span> <span class="n">lzModuleFilename</span><span class="p">);</span>
     <span class="p">}</span>
 
     <span class="k">return</span> <span class="n">EXIT_SUCCESS</span><span class="p">;</span>

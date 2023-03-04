@@ -68,9 +68,9 @@
 
 <p>Pretty fun challenge and relevant to the previous articles on this blog. If you haven’t already, go take a look at them (<a href="/portable-executable-format/"><strong>PE format</strong></a> and especially <a href="/reflective-loading-portable-executable-memory/"><strong>Reflective loading</strong></a>). Enjoy!</p>
 
-<h1 id="the-actual-writeup">The actual writeup</h1>
+<h1 id="the-actual-writeup"><strong>The actual writeup</strong></h1>
 
-<h2 id="introduction">Introduction</h2>
+<h2 id="introduction"><strong>Introduction</strong></h2>
 
 <p>As a quick introduction to the challenge, we get this few lines of text:</p>
 
@@ -92,7 +92,7 @@ memory.raw: data
 
 <p>It appears to be a memory dump. Let’s get cracking.</p>
 
-<h2 id="analysis">Analysis</h2>
+<h2 id="analysis"><strong>Analysis</strong></h2>
 
 <p>To perform the analysis, I’ll be using the well known <a href="https://github.com/volatilityfoundation/volatility3"><strong>Volatility3</strong></a>. Clearly the best tool out there atm to perform <strong>memory analysis</strong>.</p>
 
@@ -193,7 +193,7 @@ dc 5b c3 00 00 00 00 00 .[......
 
 <p>But that is not all.</p>
 
-<p>If we take a look the disassembled asm code for the <strong>0x170000</strong> range. A few things a number of things:</p>
+<p>If we take a look the disassembled asm code for the <strong>0x170000</strong> range. A few things stand out:</p>
 
 <div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>[...]
 0x170000:   push    ebx
@@ -392,7 +392,7 @@ Byeeeeeeeeeeeeee.</p>
         </p>
       </div>
       <div class="footer-col">
-        <p>An exceptional cybersecurity blog. I&#39;ll regularly *cough cough* post detailed articles about what I&#39;m working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
+        <p>An exceptional cybersecurity blog. I regularly *cough cough* post detailed articles about what I&#39;m working on or a current security topic I am interested in. Have a good read and thanks for stopping by!
 </p>
       </div>
     </div>
